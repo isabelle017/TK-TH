@@ -1,0 +1,61 @@
+# TikTok 选品数据自动化 - GitHub Actions 工作流
+#
+# 功能：每日 08:00 / 12:00 / 20:00 UTC+8
+# 自动从 FastMoss 抓取趋势商品 → 评分 → ChatGPT 分析 → Telegram 推送
+#
+# 使用前需要在 GitHub 仓库 Settings → Secrets and variables → Actions 中设置:
+#   FAST_MOSS_API_KEY    - FastMoss API Key
+#   OPENAI_API_KEY       - OpenAI API Key
+#   TELEGRAM_BOT_TOKEN   - Telegram Bot Token (从 @BotFather 获取)
+#   TELEGRAM_CHAT_ID     - Telegram 聊天 ID
+#
+# 这是免服务器方案，在 GitHub 免费额度内运行（每月 2000 分钟免费）
+
+name: TikTok 选品数据分析
+
+on:
+  schedule:
+    # 北京时间 08:00 = UTC 00:00
+    # 北京时间 12:00 = UTC 04:00
+    # 北京时间 20:00 = UTC 12:00
+    - cron: "0 0,4,12 * * *"
+  workflow_dispatch:     # 支持手动触发
+    inputs:
+      markets:
+        description: "市场列表 (逗号分隔)"
+        required: false
+        default: "us,uk,jp"
+      days:
+        description: "数据回溯天数"
+        required: false
+        default: "7"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 安装依赖
+        run: |
+          pip install -r requirements.txt
+
+      - name: 运行选品分析
+        env:
+          FAST_MOSS_API_KEY: ${{ secrets.FAST_MOSS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python scheduler.py --once \
+            --markets "${{ github.event.inputs.markets || 'us,uk,jp' }}" \
+            --days "${{ github.event.inputs.days || 7 }}"

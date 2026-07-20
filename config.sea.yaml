@@ -1,0 +1,305 @@
+# TikTok 选品自动化 - 东南亚市场配置 (SEA)
+# 适用国家: 泰国(th) / 越南(vn) / 马来西亚(my) / 印尼(id) / 菲律宾(ph)
+#
+#  vs 欧美版的主要差异:
+#   - 评分权重: 更重增长和互动，轻利润（SEA客单价低）
+#   - 翻译引擎: ChatGPT为主, DeepL为辅 (DeepL不支持泰/越/菲语)
+#   - 客服: 增加 WhatsApp Business API
+#   - 广告: CPM阈值、黄金时段不同
+#   - 物流: 关注COD退货率
+
+# ---------- API Keys ----------
+api_keys:
+  fastmoss: "${FAST_MOSS_API_KEY}"
+
+  # OpenAI (翻译+情感分析+客服)
+  openai: "${OPENAI_API_KEY}"
+
+  # Telegram
+  telegram_bot_token: "${TELEGRAM_BOT_TOKEN}"
+
+  # WhatsApp Business API (SEA 客服核心通道)
+  # 从 Meta Business Platform 获取
+  # https://developers.facebook.com/docs/whatsapp/cloud-api
+  # 环境变量: WHATSAPP_API_TOKEN / WHATSAPP_PHONE_NUMBER_ID
+  whatsapp_token: "${WHATSAPP_API_TOKEN}"
+  whatsapp_phone_number_id: "${WHATSAPP_PHONE_NUMBER_ID}"
+
+  # Google Translate API (泰/越/菲DeepL不支持时的兜底)
+  # 环境变量: GOOGLE_TRANSLATE_API_KEY
+  google_translate: "${GOOGLE_TRANSLATE_API_KEY}"
+
+# ---------- 通知配置 ----------
+notify:
+  channel: "telegram"         # telegram / whatsapp / all
+  # 错误告警推送到的渠道 (系统级问题必须能收到)
+  alert_channel: "telegram"
+
+  telegram:
+    chat_id: "${TELEGRAM_CHAT_ID}"
+
+  whatsapp:
+    # WhatsApp Business API 接收通知的号码（你的手机号，含国际区号）
+    recipient_phone: "${WHATSAPP_RECIPIENT}"
+
+# ---------- 数据源配置 ----------
+sources:
+  fastmoss:
+    enabled: true
+    # 东南亚市场代码
+    markets:
+      - "th"        # 泰国
+      - "vn"        # 越南
+      - "my"        # 马来西亚
+      # - "id"      # 印尼（可启用）
+      # - "ph"      # 菲律宾（可启用）
+      # - "sg"      # 新加坡（可启用）
+    daily_limit: 500
+    fetch_times:
+      - "08:00"
+      - "12:00"
+      - "20:00"
+
+# ---------- 趋势评分权重 (SEA 特化版) ----------
+# SEA与欧美权重差异说明:
+#   - 增长权重 ↑: SEA市场还在快速增长期，增长趋势比利润空间更关键
+#   - 利润权重 ↓: SEA客单价低($5-20)，利润分化不如欧美明显
+#   - 互动权重 ↑: SEA用户更看重社交证明，高互动=高转化
+#   - 竞争权重 →: 同
+scoring:
+  weights:
+    sales_growth_7d: 0.40     # 增长 (↑重, 市场仍在快速扩张)
+    competition_inverse: 0.20 # 竞争 (→)
+    estimated_margin: 0.15    # 利润 (↓轻, SEA客单价低)
+    seasonality: 0.10         # 季节性 (→)
+    engagement_rate: 0.15     # 互动 (↑重, SEA社交电商属性更强)
+
+  thresholds:
+    notify_min_score: 65      # 推送门槛稍低(SEA市场信息差更大)
+    hot_score: 82             # 爆品标记线
+    trending_score: 72        # 趋势标记线
+
+  # SEA 细分市场微调
+  market_overrides:
+    th:   # 泰国 - 直播电商发达，互动权重更高
+      engagement_rate: 0.18
+      sales_growth_7d: 0.37
+      estimated_margin: 0.15
+    vn:   # 越南 - 增长极快，COD退货高，利润权重压低
+      sales_growth_7d: 0.45
+      estimated_margin: 0.10
+      competition_inverse: 0.20
+    my:   # 马来西亚 - 客单价高，利润权重回归
+      estimated_margin: 0.20
+      sales_growth_7d: 0.35
+
+# ---------- GPT 分析 (SEA语言版) ----------
+gpt_analysis:
+  enabled: true
+  max_comments: 50
+  model: "gpt-4o-mini"
+  # 分析输出语言
+  output_lang: "zh-CN"
+  # 翻译目标语言列表
+  target_languages:
+    - "th"     # 泰语
+    - "vi"     # 越南语
+    - "ms"     # 马来语
+    - "id"     # 印尼语
+    - "en"     # 英语（备用）
+  # 翻译引擎: chatgpt / google / hybrid
+  # hybrid = ChatGPT优先，遇到不支持语言自动降级 Google
+  translation_engine: "hybrid"
+
+# ---------- 客服配置 (SEA版) ----------
+customer_service:
+  # 支持的渠道
+  channels:
+    - "whatsapp"      # SEA 第一渠道
+    - "tawkto"        # 网站内嵌
+    - "telegram"      # 辅助渠道
+
+  # 自动回复语言
+  languages:
+    - "th"        # 泰语
+    - "vi"        # 越南语
+    - "ms"        # 马来语
+    - "en"        # 英语
+
+  # 预设快速回复模板 (减少AI首轮响应延迟)
+  quick_replies:
+    # 物流查询
+    - intent: "tracking"
+      th: "สวัสดีค่ะ คำสั่งซื้อของคุณกำลังจัดส่ง กรุณารอรับสินค้าภายใน 3-5 วันทำการค่ะ 🚚"
+      vi: "Xin chào, đơn hàng của bạn đang được giao. Vui lòng đợi trong 3-5 ngày làm việc 🚚"
+      ms: "Selamat sejahtera, pesanan anda sedang dihantar. Sila tunggu dalam 3-5 hari bekerja 🚚"
+      en: "Hello! Your order is on its way. Please allow 3-5 business days for delivery 🚚"
+
+    # 退货咨询
+    - intent: "return"
+      th: "เรายินดีรับคืนสินค้าภายใน 14 วัน กรุณาส่งรูปสินค้าที่ได้รับมาให้เราดูหน่อยนะคะ 🙏"
+      vi: "Chúng tôi chấp nhận đổi trả trong vòng 14 ngày. Vui lòng gửi ảnh sản phẩm bạn đã nhận được 🙏"
+      ms: "Kami terima pemulangan dalam tempoh 14 hari. Sila hantar gambar produk yang diterima 🙏"
+      en: "We accept returns within 14 days. Please send us a photo of the item you received 🙏"
+
+    # COD确认
+    - intent: "cod_confirm"
+      th: "กรุณายืนยันว่าคุณยังต้องการรับสินค้านี้อยู่หรือไม่? หากยกเลิกกรุณาแจ้งล่วงหน้า 🙏"
+      vi: "Vui lòng xác nhận bạn vẫn muốn nhận đơn hàng này? Nếu muốn hủy vui lòng báo trước 🙏"
+      ms: "Sila sahkan anda masih mahu menerima pesanan ini? Jika mahu batalkan sila beritahu awal 🙏"
+      en: "Please confirm you still want to receive this order? If canceling please let us know in advance 🙏"
+
+  # COD 管理
+  cod:
+    enabled: true
+    # 下单后多少小时发送确认消息
+    confirm_hours: 2
+    # 未回复确认时的自动提醒次数
+    max_reminders: 2
+    # 拒收率告警阈值 (%)
+    reject_alert_threshold: 20
+    # 建议的拒收保险对接
+    insurance_provider: ""
+
+# ---------- 广告投放参数 (SEA版) ----------
+advertising:
+  # 默认出价上限 (USD)
+  max_bid_cpc:
+    th: 0.50    # 泰国
+    vn: 0.30    # 越南 (低价)
+    my: 0.60    # 马来西亚
+
+  # 目标ROAS
+  target_roas:
+    th: 3.5
+    vn: 4.0     # 越南低CPM，可以设更高ROAS目标
+    my: 3.0
+
+  # 止损阈值 (24小时)
+  stop_loss:
+    min_ctr: 0.3     # 比欧美低 (SEA点击率普遍低一些)
+    min_cvr: 0.8     # 比欧美低
+    max_cpc: 1.0     # 超过这个CPC自动暂停
+
+  # 黄金投放时段 (本地时间)
+  peak_hours:
+    th: "12:00-14:00,18:00-23:00"
+    vn: "11:00-13:00,19:00-22:00"
+    my: "12:00-14:00,20:00-23:00"
+
+# ---------- 物流追踪 (SEA) ----------
+logistics:
+  # 主要物流商
+  carriers:
+    - "J&T Express"       # 极兔 - 东南亚覆盖率最高
+    - "Flash Express"     # 泰国/越南
+    - "Ninja Van"         # 马来西亚/印尼/新加坡
+    - "Kerry Express"     # 泰国
+    - "GHN"               # 越南
+    - "Best Express"      # 泰国/越南
+    - "DHL eCommerce"     # 跨国
+
+  # 预计配送时长 (天)
+  delivery_days:
+    th: "3-5"
+    vn: "3-7"
+    my: "3-5"
+
+  # 异常告警 (超过以下天数未签收则告警)
+  alert_after_days: 10
+
+# ---------- 收款 ----------
+payment:
+  # 推荐收款方式
+  providers:
+    - "万里汇 (WorldFirst)"   # 费率0.3%，支持多币种
+    - "PingPong"              # 费率0.3%起
+
+  # 本地支付方式覆盖率 (用来分析用户偏好)
+  local_payments:
+    th:
+      - "TrueMoney Wallet"
+      - "PromptPay"
+      - "Bank Transfer"
+      - "COD"
+    vn:
+      - "MoMo"
+      - "ZaloPay"
+      - "Bank Transfer"
+      - "COD"
+    my:
+      - "Touch 'n Go eWallet"
+      - "GrabPay"
+      - "FPX (Online Banking)"
+      - "COD"
+
+# ---------- 存储 ----------
+storage:
+  type: "sqlite"
+  sqlite_path: "data/tk_products_sea.db"   # 与欧美版分开，防止数据混淆
+  postgres_url: ""
+
+# ---------- 日志 ----------
+logging:
+  level: "INFO"
+  file: "logs/tk_automation_sea.log"
+
+# ---------- 泰国市场专属配置 ----------
+thailand:
+  market_optimizer:
+    enabled: true
+    # 建议切入品类 (S级优先)
+    priority_categories:
+      - "beauty_skincare"
+      - "beauty_makeup"
+      - "beauty_sunscreen"
+      - "fashion_women"
+      - "fashion_muslim"
+    # 达人合作预算 (USD/月)
+    creator_budget: 500
+    # 直播黄金时段
+    live_peak_hours:
+      - "12:00-14:00"
+      - "18:00-23:00"
+    # 重要营销节点
+    key_events:
+      - month: 4
+        event: "宋干节 (泼水节) - 全年最大消费季"
+        multiplier: 1.8
+      - month: 11
+        event: "双11 + 年末促销"
+        multiplier: 1.5
+      - month: 12
+        event: "双12 + 跨年"
+        multiplier: 1.4
+
+# ---------- 越南市场专属配置 ----------
+vietnam:
+  cod_risk_manager:
+    enabled: true
+    # COD 确认流程配置
+    confirmation:
+      enabled: true
+      # 下单后多少小时发送确认
+      delay_hours: 2
+      # 最大提醒次数
+      max_reminders: 2
+      # 提醒间隔 (小时)
+      reminder_interval: 4
+    # 拒收率告警阈值 (%)
+    rejection_alert_threshold: 20
+    # 高风险省/市
+    high_risk_provinces:
+      - "Hà Nội"
+      - "Hồ Chí Minh"
+      - "Bình Dương"
+      - "Đồng Nai"
+      - "An Giang"
+    # 低风险品类
+    low_risk_categories:
+      - "food"
+      - "baby"
+      - "home_essential"
+    # 甜蜜点价格 (USD)
+    sweet_spot_min: 5
+    sweet_spot_max: 15

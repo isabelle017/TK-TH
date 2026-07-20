@@ -1,0 +1,152 @@
+# TikTok 选品自动化 - 欧美市场配置 (US/EU)
+# 适用国家: 美国(us) / 英国(uk) / 德国(de) / 法国(fr) / 西班牙(es) / 意大利(it) / 日本(jp)
+#
+#  vs 东南亚版的主要差异:
+#   - 评分权重: 利润权重更重 (欧美客单价高)
+#   - 翻译引擎: DeepL为主 (支持所有欧美语言)
+#   - 客服: Gorgias/Tawk.to, 无需 WhatsApp
+#   - 广告: CPM阈值高, 黄金时段为晚上
+
+api_keys:
+  fastmoss: "${FAST_MOSS_API_KEY}"
+  openai: "${OPENAI_API_KEY}"
+  telegram_bot_token: "${TELEGRAM_BOT_TOKEN}"
+
+notify:
+  channel: "telegram"
+  telegram:
+    chat_id: "${TELEGRAM_CHAT_ID}"
+
+sources:
+  fastmoss:
+    enabled: true
+    markets:
+      - "us"        # 美国
+      - "uk"        # 英国
+      - "de"        # 德国
+      - "fr"        # 法国
+      - "jp"        # 日本
+      # - "es"      # 西班牙
+      # - "it"      # 意大利
+      # - "ca"      # 加拿大
+    daily_limit: 500
+    fetch_times:
+      - "08:00"
+      - "16:00"
+
+scoring:
+  weights:
+    sales_growth_7d: 0.30     # 增长 (→ 成熟市场竞争充分)
+    competition_inverse: 0.20 # 竞争
+    estimated_margin: 0.30    # 利润 (↑重, 欧美客单价高利润空间大)
+    seasonality: 0.10         # 季节性 (黑五/圣诞加成明显)
+    engagement_rate: 0.10     # 互动 (→)
+
+  thresholds:
+    notify_min_score: 70
+    hot_score: 85
+    trending_score: 75
+
+  market_overrides:
+    us:
+      estimated_margin: 0.32
+      seasonality: 0.12
+    jp:
+      seasonality: 0.15      # 日本季节性消费特征明显
+      engagement_rate: 0.08
+
+gpt_analysis:
+  enabled: true
+  max_comments: 50
+  model: "gpt-4o-mini"
+  output_lang: "zh-CN"
+  target_languages:
+    - "en"
+    - "de"
+    - "fr"
+    - "es"
+    - "ja"
+  translation_engine: "deepl"      # 欧美: DeepL主力 (质量高、覆盖全)
+
+customer_service:
+  channels:
+    - "tawkto"
+    - "email"
+  languages:
+    - "en"
+    - "de"
+    - "fr"
+    - "es"
+    - "ja"
+
+advertising:
+  max_bid_cpc:
+    us: 1.50
+    uk: 1.20
+    de: 1.00
+    jp: 1.20
+
+  target_roas:
+    us: 3.0
+    uk: 3.0
+    de: 3.5
+    jp: 3.0
+
+  stop_loss:
+    min_ctr: 0.5
+    min_cvr: 1.0
+    max_cpc: 2.5
+
+  peak_hours:
+    us: "18:00-22:00"
+    uk: "18:00-22:00"
+    de: "18:00-22:00"
+    jp: "19:00-23:00"
+
+logistics:
+  carriers:
+    - "USPS"
+    - "UPS"
+    - "FedEx"
+    - "DHL"
+    - "Royal Mail"
+    - "Deutsche Post"
+    - "Yamato Transport"     # 日本
+    - "Japan Post"
+  delivery_days:
+    us: "5-10"
+    uk: "5-10"
+    de: "5-10"
+    jp: "3-7"
+  alert_after_days: 15
+
+payment:
+  providers:
+    - "万里匯 (WorldFirst)"
+    - "Payoneer"
+    - "Airwallex"
+  local_payments:
+    us:
+      - "Credit Card"
+      - "PayPal"
+      - "Apple Pay"
+    uk:
+      - "Credit Card"
+      - "PayPal"
+    de:
+      - "PayPal"
+      - "Klarna"
+      - "SEPA Transfer"
+    jp:
+      - "Credit Card"
+      - "Konbini"
+      - "PayPay"
+
+storage:
+  type: "sqlite"
+  sqlite_path: "data/tk_products_us.db"
+  postgres_url: ""
+
+logging:
+  level: "INFO"
+  file: "logs/tk_automation_us.log"

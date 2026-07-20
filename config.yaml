@@ -1,0 +1,99 @@
+# TikTok 选品自动化 - 配置文件
+# 将 API Key 填入下方，或通过环境变量注入（推荐）
+
+# ---------- API Keys (建议通过环境变量注入) ----------
+api_keys:
+  # FastMoss Open API
+  # 注册: https://open.fastmoss.com/
+  # 环境变量: FAST_MOSS_API_KEY
+  fastmoss: "${FAST_MOSS_API_KEY}"
+
+  # EchoTik (非官方，需要用 Playwright 模拟)
+  # EchoTik Cookie (从浏览器登录后复制)
+  # 环境变量: ECHO_TIK_COOKIE
+  echotik_cookie: "${ECHO_TIK_COOKIE}"
+
+  # OpenAI (ChatGPT 评论分析)
+  # 环境变量: OPENAI_API_KEY
+  openai: "${OPENAI_API_KEY}"
+
+  # Telegram Bot
+  # 从 @BotFather 创建 bot 获取 token
+  # 环境变量: TELEGRAM_BOT_TOKEN
+  telegram_bot_token: "${TELEGRAM_BOT_TOKEN}"
+
+# ---------- 通知配置 ----------
+notify:
+  # 推送渠道: telegram / wecom / all
+  channel: "telegram"
+
+  # Telegram 配置
+  telegram:
+    chat_id: "${TELEGRAM_CHAT_ID}"       # 你的 Telegram 用户/群组 ID
+
+  # 企业微信机器人
+  wecom:
+    webhook_url: "${WECOM_WEBHOOK_URL}"  # 企业微信群机器人 Webhook
+
+# ---------- 选品数据源配置 ----------
+sources:
+  fastmoss:
+    enabled: true
+    # 国家站点: us / uk / id / th / vn / ph / sg / sa / mx / br / jp / kr / de / fr / es / it / nl / ca / au
+    markets:
+      - "us"
+      - "uk"
+      - "jp"
+    # 每日抓取次数限制
+    daily_limit: 500
+    # 抓取时间窗口（24小时制）
+    fetch_times:
+      - "08:00"
+      - "12:00"
+      - "20:00"
+
+  echotik:
+    enabled: false      # 默认关闭（需要 Playwright + Cookie）
+    markets:
+      - "us"
+    fetch_times:
+      - "09:00"
+
+# ---------- 趋势评分权重 ----------
+scoring:
+  weights:
+    sales_growth_7d: 0.35     # 近7天销量增长率
+    competition_inverse: 0.20 # 竞争度倒数 (卖家少则分高)
+    estimated_margin: 0.25    # 预估利润率
+    seasonality: 0.10         # 季节性系数
+    engagement_rate: 0.10     # TikTok 互动率 (点赞/评论/分享)
+
+  # 评分阈值 - 达到以下分数推送通知
+  thresholds:
+    notify_min_score: 70      # 低于此分不推送
+    hot_score: 85             # 超过此分标记为"🔥 爆品潜力"
+    trending_score: 75        # 超过此分标记为"📈 趋势上升"
+
+# ---------- GPT 评论分析 ----------
+gpt_analysis:
+  enabled: true
+  # 每次分析的评论数量上限
+  max_comments: 50
+  # 使用模型
+  model: "gpt-4o-mini"        # 性价比平衡
+  # 分析语言
+  lang: "zh-CN"
+
+# ---------- 存储 ----------
+storage:
+  # sqlite / postgresql
+  type: "sqlite"
+  # SQLite 文件路径
+  sqlite_path: "data/tk_products.db"
+  # PostgreSQL 连接串（启用时使用）
+  postgres_url: ""
+
+# ---------- 日志 ----------
+logging:
+  level: "INFO"               # DEBUG / INFO / WARNING / ERROR
+  file: "logs/tk_automation.log"
