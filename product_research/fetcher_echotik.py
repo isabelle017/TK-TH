@@ -130,7 +130,11 @@ class EchoTikClient:
         for url in candidates:
             try:
                 resp = await self._session.get(url, params=params)  # type: ignore
+                logger.info("EchoTik REST 尝试 %s => 状态码 %s", url, resp.status_code)
                 if resp.status_code != 200:
+                    # 非 200 时截取响应前 200 字符调试
+                    text_preview = resp.text[:200] if resp.text else ""
+                    logger.info("EchoTik 非200响应: %s", text_preview)
                     continue
 
                 data = resp.json()
@@ -148,7 +152,10 @@ class EchoTikClient:
         url = f"{BASE_URL}/top-products?market={market.upper()}"
         try:
             resp = await self._session.get(url)  # type: ignore
+            logger.info("EchoTik HTML 抓取 %s => 状态码 %s", url, resp.status_code)
             if resp.status_code != 200:
+                text_preview = resp.text[:300] if resp.text else ""
+                logger.info("EchoTik HTML 非200响应: %s", text_preview)
                 return None
 
             text = resp.text
