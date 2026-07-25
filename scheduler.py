@@ -84,8 +84,9 @@ class ProductPipeline:
     5. 推送高分商品到即时通讯
     """
 
-    def __init__(self, config: dict, storage: Optional[Storage] = None):
+    def __init__(self, config: dict, storage: Optional[Storage] = None, region: str = "us"):
         self.config = config
+        self.region = region
         self.logger = logging.getLogger("pipeline")
 
         # 评分引擎
@@ -331,6 +332,7 @@ class ProductPipeline:
                 product_id=product.product_id,
                 source=product.source,
                 market=product.market.value,
+                region=self.region,
                 sentiment=sentiment,
             ))
 

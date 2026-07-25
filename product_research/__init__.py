@@ -5,7 +5,7 @@ TikTok 选品自动化 - 数据模型
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
@@ -158,7 +158,7 @@ class PushMessage(BaseModel):
     sentiment: Optional[SentimentResult] = None
     region: str = Field(default="us", description="区域: sea/us/eu")
     cod_info: Optional[CODInfo] = Field(default=None, description="COD 信息 (SEA)")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def format_telegram(self) -> str:
         """格式化为 Telegram 消息"""
