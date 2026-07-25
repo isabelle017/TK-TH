@@ -283,7 +283,7 @@ def render_score_distribution(df: pd.DataFrame):
                   annotation_text="爆品线")
     fig.add_vline(x=75, line_dash="dash", line_color="orange",
                   annotation_text="趋势线")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 # ──────────────────────────────────────────────
@@ -305,7 +305,7 @@ def render_market_comparison(df: pd.DataFrame):
 
     st.dataframe(
         market_stats,
-        use_container_width=True,
+        width='stretch',
         column_config={
             "总销量": st.column_config.NumberColumn(format="%d"),
             "均价": st.column_config.NumberColumn(format="$%.2f"),
@@ -345,7 +345,7 @@ def render_top_products(df: pd.DataFrame):
 
     st.dataframe(
         top_df,
-        use_container_width=True,
+        width='stretch',
         height=600,
         column_config={
             "商品标题": st.column_config.TextColumn(width="large"),
@@ -416,7 +416,7 @@ def render_trend_chart(df: pd.DataFrame):
         margin=dict(l=20, r=20, t=40, b=20),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 # ──────────────────────────────────────────────
@@ -440,7 +440,7 @@ def render_analysis_logs(db_path: str):
     recent.columns = ["日期", "数据源", "市场", "商品数",
                       "最高分", "爆品数", "趋势数", "错误"]
 
-    st.dataframe(recent, use_container_width=True, height=400)
+    st.dataframe(recent, width='stretch', height=400)
 
 
 # ──────────────────────────────────────────────
