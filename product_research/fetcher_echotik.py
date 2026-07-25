@@ -6,7 +6,7 @@ EchoTik 目前没有公开的 REST API，有两种获取方式：
 2. 直接 HTTP 请求模拟（需要 Cookie）
 
 使用本模块前：
-1. 在浏览器中登录 EchoTik (https://www.echotik.com)
+1. 在浏览器中登录 EchoTik (https://echotik.live)
 2. 从开发者工具 → Application → Cookies 中复制完整 Cookie
 3. 设置环境变量 ECHO_TIK_COOKIE
 
@@ -25,7 +25,7 @@ from product_research import Market, ProductInsight
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://www.echotik.com"
+BASE_URL = "https://echotik.live"
 
 # EchoTik 国家映射
 _MARKET_MAP: dict[str, Market] = {
@@ -256,7 +256,7 @@ class EchoTikPlaywrightClient:
             # 注入 Cookie
             if self.cookie:
                 await context.add_cookies([
-                    {"name": k, "value": v, "domain": ".echotik.com", "path": "/"}
+                    {"name": k, "value": v, "domain": ".echotik.live", "path": "/"}
                     for cookie_part in self.cookie.split("; ")
                     for k, v in [cookie_part.split("=", 1)]
                 ])
