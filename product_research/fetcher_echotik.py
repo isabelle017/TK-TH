@@ -31,7 +31,7 @@ BASE_URL = "https://www.echotik.com"
 _MARKET_MAP: dict[str, Market] = {
     "US": Market.US, "UK": Market.UK, "JP": Market.JP,
     "ID": Market.ID, "TH": Market.TH, "VN": Market.VN,
-    "PH": Market.PH, "SG": Market.SG, "SA": Market.SA,
+    "PH": Market.PH, "SG": Market.SG, "MY": Market.MY, "SA": Market.SA,
     "BR": Market.BR, "MX": Market.MX,
 }
 

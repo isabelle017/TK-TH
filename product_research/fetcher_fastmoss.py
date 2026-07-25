@@ -33,7 +33,7 @@ _MARKET_MAP: dict[str, Market] = {
     "US": Market.US, "UK": Market.UK, "JP": Market.JP,
     "DE": Market.DE, "FR": Market.FR, "ES": Market.ES,
     "IT": Market.IT, "ID": Market.ID, "TH": Market.TH,
-    "VN": Market.VN, "PH": Market.PH, "SG": Market.SG,
+    "VN": Market.VN, "PH": Market.PH, "SG": Market.SG, "MY": Market.MY,
     "SA": Market.SA, "MX": Market.MX, "BR": Market.BR,
     "KR": Market.KR, "NL": Market.NL, "CA": Market.CA,
     "AU": Market.AU,

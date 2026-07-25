@@ -10,10 +10,13 @@
 
 # ---------- API Keys ----------
 api_keys:
+  # FastMoss (国内网络受限时使用 mock 数据)
   fastmoss: "${FAST_MOSS_API_KEY}"
 
-  # OpenAI (翻译+情感分析+客服)
+  # AI 翻译+情感分析 (使用 DeepSeek 替代 OpenAI，国内可直接访问)
+  # DeepSeek API Key 通过 .env 中的 OPENAI_API_KEY 传入
   openai: "${OPENAI_API_KEY}"
+  openai_base_url: "${OPENAI_BASE_URL}"
 
   # Telegram
   telegram_bot_token: "${TELEGRAM_BOT_TOKEN}"
@@ -31,9 +34,18 @@ api_keys:
 
 # ---------- 通知配置 ----------
 notify:
-  channel: "telegram"         # telegram / whatsapp / all
-  # 错误告警推送到的渠道 (系统级问题必须能收到)
-  alert_channel: "telegram"
+  # QQ 邮箱通知 (国内网络友好，稳定可靠)
+  channel: "email"
+  alert_channel: "email"
+
+  telegram:
+    chat_id: "${TELEGRAM_CHAT_ID}"
+
+  email:
+    enabled: true
+    # 当前使用 QQ 邮箱 SMTP
+    # SMTP: smtp.qq.com:465 (SSL)
+    # 如需更换，修改 .env 中的 SMTP_HOST / SMTP_PORT
 
   telegram:
     chat_id: "${TELEGRAM_CHAT_ID}"
@@ -97,7 +109,8 @@ scoring:
 gpt_analysis:
   enabled: true
   max_comments: 50
-  model: "gpt-4o-mini"
+  # DeepSeek-chat 替代 GPT-4o-mini (国内可直接访问)
+  model: "deepseek-chat"
   # 分析输出语言
   output_lang: "zh-CN"
   # 翻译目标语言列表

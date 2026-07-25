@@ -27,6 +27,7 @@ class Market(str, Enum):
     VN = "vn"
     PH = "ph"
     SG = "sg"
+    MY = "my"
     SA = "sa"
     MX = "mx"
     BR = "br"

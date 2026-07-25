@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "TelegramNotifier", "WeComNotifier", "Notifier",
     "WhatsAppNotifier", "SEANotifier",
+    "EmailNotifier", "NotifierWithEmail",
 ]
 
 # ──────────────────────────────────────────────
