@@ -366,6 +366,7 @@ class ProductPipeline:
                 "Wireless Bluetooth Earbuds TWS",
                 "Collagen Face Serum Vitamin C",
                 "Phone Case Cute Cat Pattern",
+                "Gold Necklace Minimalist 18K Set",
             ],
             "vn": [
                 "Áo Thun Cotton 100%",
@@ -373,6 +374,7 @@ class ProductPipeline:
                 "Sạc Dự Phòng 20000mAh",
                 "Mặt Nạ Dưỡng Da Collagen",
                 "Ốp Lưng iPhone Siêu Xinh",
+                "Silver Earrings Heart Shape Cute",
             ],
             "my": [
                 "Hijab Shawl Premium Cotton",
@@ -380,6 +382,7 @@ class ProductPipeline:
                 "Wireless Mouse Ergonomic",
                 "Tudung Segi Empat",
                 "Essential Oil Diffuser",
+                "Gold Ring Set Minimalist Design",
             ],
         }
 
@@ -435,6 +438,39 @@ class ProductPipeline:
                 "颜色和图片一样好看",
                 "จะซื้ออีกแน่นอน ถูกใจมาก",
                 "Màu sắc đẹp, chất lượng tốt",
+            ],
+            "Gold Necklace": [
+                "ทองสวยมาก ไม่แพง คุณภาพเกินราคา 👍",
+                "สวมใส่แล้วดูแพง ดูดี มีราคา",
+                "Chain is a bit thin, worried it might break",
+                "ไม่ทำให้แพ้ ใส่ได้ทั้งวัน สีไม่ตก",
+                "หักหลังใช้ไป 2 อาทิตย์ ควรปรับปรุงคุณภาพ",
+                "เพื่อนถามว่าซื้อที่ไหน ดูแพงมาก",
+                "Тhiết kế đẹp, phù hợp mặc hàng ngày",
+                "颜色很好看，戴了半个月没掉色",
+                "ตะขอเล็กไปหน่อย เปิด-ปิดยาก",
+            ],
+            "Gold Ring": [
+                "Very pretty and elegant design 😊",
+                "Size runs small, order at least one size up",
+                "Cincin cantik, berbaloi dengan harga",
+                "ไม่แพง แต่ดูแพง ถูกใจมากค่ะ",
+                "用了两周开始有划痕了",
+                "Sangat selesa dipakai, reka bentuk minimalis",
+                "黄金色很正，拍照上镜好看",
+                "尺寸偏小建议买大一码",
+                "đẹp, chất lượng tốt, giao hàng nhanh",
+            ],
+            "Silver Earrings": [
+                "Mẫu mã đẹp, nhẹ nhàng, không bị dị ứng",
+                "Bông tai đẹp nhưng hơi nhỏ so với hình",
+                "Silver didn't tarnish after 2 weeks, good quality",
+                "Hộp đựng đẹp, thích hợp làm quà tặng 🎁",
+                "Chất lượng tốt tương xứng với tiền",
+                "用了两个星期，没有氧化变色",
+                "Siêu xinh, mặc gì cũng dễ phối",
+                "Bị rớt một bên vì khóa yếu, cần cải thiện",
+                "Thiết kế tinh tế, rất ưng ý",
             ],
         }
 
