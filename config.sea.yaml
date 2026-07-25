@@ -112,8 +112,8 @@ scoring:
 gpt_analysis:
   enabled: true
   max_comments: 50
-  # GPT-4o-mini 经济高效，适合批量分析
-  model: "gpt-4o-mini"
+  # DeepSeek-chat 替代 GPT（国内可直接访问，价格更低）
+  model: "deepseek-chat"
   # 分析输出语言
   output_lang: "zh-CN"
   # 翻译目标语言列表
