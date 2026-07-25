@@ -180,6 +180,13 @@ class EchoTikClient:
         except Exception as exc:
             logger.debug("EchoTik HTML 抓取失败: %s", exc)
 
+        # 如果上面的策略都失败，打印页面前2000字符分析
+        if text:
+            logger.info("EchoTik 页面开头内容: %s...", text[:2000].replace('\n', ' '))
+            # 尝试找任何 JSON-like 数据块
+            json_blocks = re.findall(r'window\.__[A-Z_]+\s*=\s*({.*?});', text, re.DOTALL)
+            logger.info("EchoTik 页面中找到 %d 个 JSON 数据块", len(json_blocks))
+
         return None
 
     @staticmethod
