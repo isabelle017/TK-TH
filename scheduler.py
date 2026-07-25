@@ -481,6 +481,10 @@ def main():
         "--markets", default=None,
         help="市场列表，逗号分隔，如 'th,vn,my' (默认使用区域默认值)"
     )
+    parser.add_argument(
+        "--days", type=int, default=7,
+        help="数据回溯天数 (默认 7)"
+    )
     args = parser.parse_args()
 
     # 确定配置文件 (在 logging 初始化之前用 print)
@@ -538,7 +542,7 @@ def main():
         logger.info("一次性运行模式 - 区域: %s, 市场: %s", args.region, markets)
         pipeline = ProductPipeline(config)
         pipeline.region = args.region  # 标记区域
-        asyncio.run(pipeline.run_once(markets=markets))
+        asyncio.run(pipeline.run_once(markets=markets, days=args.days))
     else:
         # 定时调度模式
         logger.info("定时调度模式 - 区域: %s", args.region)
