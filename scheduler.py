@@ -226,13 +226,13 @@ class ProductPipeline:
         scores = [s[1] for s in scored]
         self.storage.save_products(products, scores)
 
-        # ── 第四步：ChatGPT 评论分析（只对高分商品） ──
+        # ── 第四步：ChatGPT 评论分析（对所有推送商品分析） ──
         sentiment_results: dict[str, Optional] = {}
         if self.sentiment_analyzer:
             threshold = self.analyzer.thresholds.notify_min_score
             top_products = [
                 s for s in scored if s[1].score >= threshold
-            ][:5]  # 最多分析前5个
+            ]
 
             if top_products:
                 self.logger.info("正在对 %d 个高分商品进行 ChatGPT 评论分析...",
