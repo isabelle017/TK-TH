@@ -26,6 +26,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 
 # ──────────────────────────────────────────────
 # 页面配置 (必须是第一个 streamlit 命令)
@@ -58,6 +59,7 @@ def get_engine(db_path: str):
     return create_engine(f"sqlite:///{abs_path}")
 
 
+@st.cache_data(ttl=300)
 def load_products(db_path: str) -> pd.DataFrame:
     """
     从 SQLite 加载商品数据
@@ -448,6 +450,9 @@ def render_analysis_logs(db_path: str):
 # ──────────────────────────────────────────────
 
 def main():
+    # 自动刷新（每 5 分钟）
+    count = st_autorefresh(interval=300_000, key="autorefresh")
+
     st.markdown(
         """
         <style>
