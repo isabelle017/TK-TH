@@ -10,8 +10,8 @@
 
 # ---------- API Keys ----------
 api_keys:
-  # FastMoss (国内网络受限时使用 mock 数据)
-  fastmoss: "${FAST_MOSS_API_KEY}"
+  # FastMoss — 无公开 REST API，实际运行中自动降级到其他数据源
+  fastmoss: ""
 
   # AI 翻译+情感分析 (使用 DeepSeek 替代 OpenAI，国内可直接访问)
   # DeepSeek API Key 通过 .env 中的 OPENAI_API_KEY 传入
@@ -38,9 +38,6 @@ notify:
   channel: "email"
   alert_channel: "email"
 
-  telegram:
-    chat_id: "${TELEGRAM_CHAT_ID}"
-
   email:
     enabled: true
     # 当前使用 QQ 邮箱 SMTP
@@ -56,21 +53,27 @@ notify:
 
 # ---------- 数据源配置 ----------
 sources:
+  # FastMoss — 无公开 REST API，保持 enabled: false
   fastmoss:
-    enabled: true
+    enabled: false
     # 东南亚市场代码
     markets:
       - "th"        # 泰国
       - "vn"        # 越南
       - "my"        # 马来西亚
-      # - "id"      # 印尼（可启用）
-      # - "ph"      # 菲律宾（可启用）
-      # - "sg"      # 新加坡（可启用）
     daily_limit: 500
     fetch_times:
       - "08:00"
       - "12:00"
       - "20:00"
+
+  # EchoTik — 当前主力数据源（需配置 Cookie）
+  echotik:
+    enabled: true
+    markets:
+      - "th"
+      - "vn"
+      - "my"
 
 # ---------- 趋势评分权重 (SEA 特化版) ----------
 # SEA与欧美权重差异说明:

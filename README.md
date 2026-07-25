@@ -1,6 +1,7 @@
 # TikTok 选品自动化工具
 
-每日自动从 FastMoss 抓取 TikTok 趋势商品数据 → 趋势评分 → ChatGPT 情感分析 → Telegram 推送爆品线索。
+多数据源自动抓取 TikTok 趋势商品 → 趋势评分 → ChatGPT 情感分析 → 多通道推送爆品线索。
+数据源优先级：EchoTik Cookie 抓取 → Mock 数据（无 API Key 也可运行）。
 
 ## 快速开始
 
@@ -32,11 +33,12 @@ cp .env.example .env
 
 | 环境变量 | 必填 | 获取方式 |
 |----------|:----:|----------|
-| `FAST_MOSS_API_KEY` | ✅ | [FastMoss Open API](https://open.fastmoss.com/) 注册获取 |
-| `OPENAI_API_KEY` | ✅ | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| `ECHO_TIK_COOKIE` | ❌ | EchoTik 浏览器登录后从 Cookie 获取（选配，不用时走 Mock 数据） |
+| `OPENAI_API_KEY` | ✅ | [OpenAI Platform](https://platform.openai.com/api-keys) 或 DeepSeek |
 | `TELEGRAM_BOT_TOKEN` | ✅ | Telegram 搜索 @BotFather，创建 Bot |
 | `TELEGRAM_CHAT_ID` | ✅ | 向你的 Bot 发一条消息后访问 `https://api.telegram.org/bot<token>/getUpdates` 获取 |
-| `ECHO_TIK_COOKIE` | ❌ | EchoTik 浏览器登录后从 Cookie 获取（选配） |
+
+> **FastMoss 说明**：FastMoss 没有公开的 REST API，代码中的 FastMoss 客户端已降级为占位符。实际运行时 pipeline 会自动尝试 EchoTik，若均不可用则使用 Mock 数据，**无需额外配置 FastMoss**。
 
 ### 3. 测试配置
 
@@ -108,9 +110,9 @@ tk-automation/
 ## 工作流程
 
 ```
-FastMoss API ──→ 趋势评分 ──→ ChatGPT 分析 ──→ DB 存储 ──→ Telegram 推送
-                                ↓
-                          评论情感摘要
+EchoTik / Mock ──→ 趋势评分 ──→ ChatGPT 分析 ──→ DB 存储 ──→ 多通道推送
+                    ↓
+              评论情感摘要
 ```
 
 ## 推送示例

@@ -25,7 +25,8 @@ import yaml
 from dotenv import load_dotenv
 
 from product_research import ProductInsight, PushMessage, TrendScore
-from product_research.fetcher_fastmoss import FastMossClient, fetch_trending_products
+from product_research.fetcher_fastmoss import FastMossClient, fetch_trending_products as fetch_fastmoss
+from product_research.fetcher_echotik import EchoTikClient
 from product_research.analyzer_trend import (
     ScoringThresholds,
     ScoringWeights,
@@ -76,7 +77,7 @@ class ProductPipeline:
     选品分析流水线
 
     完整的处理链路：
-    1. 从 FastMoss 抓取趋势商品
+    1. 从数据源抓取趋势商品（FastMoss → EchoTik → Mock 降级）
     2. 趋势评分算法计算
     3. (可选) ChatGPT 评论情感分析
     4. 存储到数据库
@@ -160,31 +161,47 @@ class ProductPipeline:
         stats = {"products_fetched": 0, "pushed": 0, "hot_count": 0,
                  "trending_count": 0, "errors": 0, "run_id": run_id}
 
-        # 确定要抓取的市场
+        if not markets:
+            sources_cfg = self.config.get("sources", {})
+            markets = sources_cfg.get("fastmoss", {}).get("markets", ["us"])
+
+        # ── 第一步：数据获取（多源降级） ──
+        # 优先级: FastMoss → EchoTik → Mock
+        all_products = []
+
+        # 1a) 尝试 FastMoss
         sources_cfg = self.config.get("sources", {})
         fastmoss_cfg = sources_cfg.get("fastmoss", {})
+        if fastmoss_cfg.get("enabled", True):
+            self.logger.info("正在从 FastMoss 抓取数据: markets=%s", markets)
+            try:
+                all_products = await fetch_fastmoss(markets=markets, days=days)
+            except Exception as exc:
+                self.logger.warning("FastMoss 抓取失败: %s", exc)
+                stats["errors"] += 1
 
-        if not markets:
-            markets = fastmoss_cfg.get("markets", ["us"])
-
-        if not fastmoss_cfg.get("enabled", True):
-            self.logger.warning("FastMoss 数据源已禁用，跳过抓取")
-            return stats
-
-        # ── 第一步：从 FastMoss 抓取 ──
-        self.logger.info("正在从 FastMoss 抓取数据: markets=%s, days=%d", markets, days)
-        all_products = []
-        try:
-            all_products = await fetch_trending_products(
-                markets=markets, days=days
-            )
-        except Exception as exc:
-            self.logger.error("FastMoss 抓取失败: %s", exc)
-            stats["errors"] += 1
-
-        # 如果抓取失败或没有数据，使用模拟数据
+        # 1b) FastMoss 无数据 → 尝试 EchoTik
         if not all_products:
-            self.logger.warning("FastMoss 无数据，使用模拟数据")
+            echotik_cfg = sources_cfg.get("echotik", {})
+            if echotik_cfg.get("enabled", False):
+                self.logger.info("FastMoss 无数据，尝试从 EchoTik 抓取...")
+                try:
+                    cookie = os.getenv("ECHO_TIK_COOKIE", "") or echotik_cfg.get("cookie", "")
+                    if cookie and cookie != "${ECHO_TIK_COOKIE}":
+                        client = EchoTikClient(cookie=cookie)
+                        for market in markets:
+                            products = await client.get_trending_products(market=market, days=days)
+                            all_products.extend(products)
+                        await client.close()
+                    else:
+                        self.logger.info("EchoTik Cookie 未配置，跳过")
+                except Exception as exc:
+                    self.logger.warning("EchoTik 抓取失败: %s", exc)
+                    stats["errors"] += 1
+
+        # 1c) 全部失败 → 模拟数据兜底
+        if not all_products:
+            self.logger.warning("所有数据源均不可用，使用模拟数据")
             all_products = self._generate_mock_products(markets)
             if not all_products:
                 await self._notify_error("无法获取任何商品数据")
@@ -253,9 +270,10 @@ class ProductPipeline:
 
         # 记录分析日志
         top_score = scores[0].score if scores else 0.0
+        actual_source = products[0].source if products else "mock"
         self.storage.log_analysis(
             run_id=run_id,
-            source="fastmoss",
+            source=actual_source,
             market=",".join(markets),
             product_count=len(products),
             top_score=top_score,

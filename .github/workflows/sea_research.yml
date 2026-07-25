@@ -5,12 +5,11 @@
 # 配置文件: config.sea.yaml
 #
 # GitHub Secrets 需配置:
-#   FAST_MOSS_API_KEY
 #   OPENAI_API_KEY
 #   TELEGRAM_BOT_TOKEN
 #   TELEGRAM_CHAT_ID
-#   (可选) WHATSAPP_API_TOKEN
-#   (可选) WHATSAPP_PHONE_NUMBER_ID
+#   SMTP_USER / SMTP_PASSWORD (QQ邮箱，替代Telegram国内使用)
+#   (可选) ECHO_TIK_COOKIE
 
 name: 🌏 SEA 选品分析
 
@@ -52,10 +51,14 @@ jobs:
 
       - name: 运行 SEA 选品分析
         env:
-          FAST_MOSS_API_KEY: ${{ secrets.FAST_MOSS_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # QQ 邮箱 SMTP（推荐用于国内环境通知）
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
           python scheduler.py --region sea --once \
             --markets "${{ github.event.inputs.markets || 'th,vn,my' }}" \

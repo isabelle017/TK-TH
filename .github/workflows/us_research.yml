@@ -5,7 +5,6 @@
 # 配置文件: config.us.yaml
 #
 # GitHub Secrets 需配置:
-#   FAST_MOSS_API_KEY
 #   OPENAI_API_KEY
 #   TELEGRAM_BOT_TOKEN
 #   TELEGRAM_CHAT_ID
@@ -48,7 +47,6 @@ jobs:
 
       - name: 运行 US 选品分析
         env:
-          FAST_MOSS_API_KEY: ${{ secrets.FAST_MOSS_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

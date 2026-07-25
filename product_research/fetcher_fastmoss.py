@@ -4,8 +4,10 @@ FastMoss API 客户端
 FastMoss 是目前 TikTok 电商数据量最大的平台（5亿+商品）。
 接口文档: https://open.fastmoss.com/
 
-注意：你需要先在 FastMoss 注册并获取 API Key。
-免费版仅 7 天试用，正式使用需要付费订阅。
+注意：FastMoss 没有公开的 REST API。如果需要对接官方接口，
+请联系 FastMoss 商务团队（sales@fastmoss.com）获取专有对接方案。
+
+本客户端当前仅作为占位符，返回空列表以便 pipeline 降级到其他数据源。
 """
 from __future__ import annotations
 
@@ -51,10 +53,13 @@ class FastMossClient:
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("FAST_MOSS_API_KEY", "")
-        if not self.api_key or self.api_key == "${FAST_MOSS_API_KEY}":
-            raise ValueError(
-                "缺少 FastMoss API Key。请通过环境变量 FAST_MOSS_API_KEY 设置，"
-                "或在 config.yaml 中填入。"
+        self._available = bool(self.api_key) and self.api_key != "${FAST_MOSS_API_KEY}"
+
+        if not self._available:
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "FastMoss 没有公开的 REST API，已降级跳过。"
+                "如需对接请联系 FastMoss 商务团队。"
             )
 
         self._client = httpx.AsyncClient(
@@ -89,6 +94,8 @@ class FastMossClient:
             page_size: 每页数量 (最大 50)
             days: 数据回溯天数 (7/14/30)
         """
+        if not self._available:
+            return []
         params = {
             "market": market.upper(),
             "page": page,
@@ -100,6 +107,8 @@ class FastMossClient:
 
     async def get_product_detail(self, product_id: str) -> Optional[ProductInsight]:
         """获取单个商品详情"""
+        if not self._available:
+            return None
         data = await self._get(f"/product/{product_id}")
         if not data:
             return None
@@ -113,6 +122,8 @@ class FastMossClient:
         page_size: int = 20,
     ) -> list[ProductInsight]:
         """按关键词搜索商品"""
+        if not self._available:
+            return []
         params = {
             "keyword": keyword,
             "market": market.upper(),
@@ -129,6 +140,8 @@ class FastMossClient:
         page_size: int = 20,
     ) -> list[dict]:
         """获取商品评论"""
+        if not self._available:
+            return []
         params = {"productId": product_id, "page": page, "pageSize": page_size}
         data = await self._get("/product/review", params=params)
         return data.get("data", {}).get("items", [])
@@ -242,17 +255,22 @@ async def fetch_trending_products(
     快捷函数：获取多个市场的趋势商品
 
     Args:
-        markets: 市场代码列表, 如 ["us", "uk", "jp"]
+        markets: 市场代码列表, 如 ["th", "vn", "my"]
         api_key: FastMoss API Key (默认从环境变量读取)
         days: 数据回溯天数
 
     Returns:
-        合并的商品列表
+        合并的商品列表（若 API 不可用返回空列表）
     """
     client = FastMossClient(api_key=api_key)
     all_products: list[ProductInsight] = []
 
     try:
+        if not client._available:
+            logger = logging.getLogger(__name__)
+            logger.info("FastMoss 不可用，跳过（返回空列表供 pipeline 降级）")
+            return []
+
         for market in markets:
             products = await client.get_trending_products(
                 market=market, days=days
