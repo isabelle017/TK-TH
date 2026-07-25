@@ -160,7 +160,10 @@ class SentimentAnalyzer:
         self.max_comments = max_comments
         self.output_lang = output_lang
 
-        self._client = OpenAI(api_key=self.api_key)
+        self._client = OpenAI(
+            api_key=self.api_key,
+            base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com"),
+        )
 
     def analyze(
         self,
