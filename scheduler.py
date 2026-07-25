@@ -237,10 +237,16 @@ class ProductPipeline:
             if top_products:
                 self.logger.info("正在对 %d 个高分商品进行 ChatGPT 评论分析...",
                                  len(top_products))
-                # 此处可以集成 FastMoss 的评论 API
-                # 由于评论 API 需要单独调用，这里先跳过评论获取
-                # 实际使用时，可以在此处调用 FastMossClient 的 get_product_reviews
-                pass
+                # 使用模拟评论进行情感分析（真实数据源接入后会自动用真实评论）
+                for product, score in top_products:
+                    pid = product.product_id
+                    mock_comments = getattr(self, '_mock_comments', {}).get(pid, [])
+                    if mock_comments:
+                        result = self.sentiment_analyzer.analyze(pid, mock_comments)
+                        if result:
+                            sentiment_results[pid] = result
+                            self.logger.info("商品 %s 情感分析完成: %s",
+                                             pid, result.overall_sentiment)
 
         # ── 第五步：推送通知 ──
         push_messages = self._build_push_messages(scored, sentiment_results)
@@ -347,7 +353,7 @@ class ProductPipeline:
 
     def _generate_mock_products(self, markets: list[str]) -> list:
         """
-        当 FastMoss API 不可用时生成模拟商品数据
+        当数据源不可用时生成模拟商品数据和评论
         """
         import random
         from datetime import datetime, timezone
@@ -377,6 +383,61 @@ class ProductPipeline:
             ],
         }
 
+        # 为每个品类生成模拟评论
+        self._mock_comments = {}
+        mock_reviews = {
+            "Whitening Sunscreen SPF50": [
+                "ซื้อมาใช้แล้วเห็นผลจริง ขาวขึ้นภายใน 2 อาทิตย์ 👍",
+                "เนื้อกันแดดบางเบา ซึมเร็ว ไม่ขาววอก",
+                "แพ็กเกจดี แต่หลอดเล็กไปหน่อย",
+                "ใช้แล้วหน้าไม่มัน กันน้ำได้ดี",
+                "ราคาสมเหตุสมผล กลิ่นหอมอ่อน",
+                "Ban đẹp, trắng da rõ rệt",
+                "Có chút nhờn khi dùng trong thời tiết nóng",
+                "Fast shipping, authentic product",
+            ],
+            "Yoga Leggings": [
+                "Good quality, very comfortable! ❤️",
+                "Size runs small, order one size up",
+                "Perfect for yoga and gym",
+                "颜色好看不掉色",
+                "弹性很好，透气性好",
+                "High waist design is very flattering",
+                "Material is soft but might pill",
+                "Sangㄱ ㅏㄴ ㅡㅁ 조아요",
+            ],
+            "Wireless Bluetooth Earbuds": [
+                "连接快速，音质对得起这个价格",
+                "Battery lasts about 4 hours, not bad",
+                "Kết nối Bluetooth ổn định, ít bị ngắt",
+                "Fit comfortably, comes with multiple ear tips",
+                "Sound quality is decent for the price",
+                "Pin tidak tahan lama, perlu charging setiap hari",
+                "Mic quality is average",
+                "Sangat berbaloi dengan harga 👍",
+            ],
+            "Collagen Face Serum": [
+                "用了两周皮肤变亮了",
+                "ดูดซึมเร็ว ไม่เหนียวเหนอะ",
+                "Chưa thấy hiệu quả rõ rệt sau 1 tuần",
+                "包装精美，滴管设计方便使用",
+                "ราคาถูกกว่าร้านขายยามาก",
+                "Good serum for beginners in skincare",
+                "San pham tot, giao nhanh",
+                "ชอบมาก ซื้อซ้ำแน่นอน",
+            ],
+            "Phone Case": [
+                "Design is super cute 😍",
+                "Fits perfectly, buttons are easy to press",
+                "保护好，手机摔了一次没事",
+                "Material attracts dust and lint",
+                "Nice quality for the price",
+                "颜色和图片一样好看",
+                "จะซื้ออีกแน่นอน ถูกใจมาก",
+                "Màu sắc đẹp, chất lượng tốt",
+            ],
+        }
+
         products = []
         for market_code in markets:
             market_enum = Market(market_code)
@@ -387,10 +448,10 @@ class ProductPipeline:
                 sales = random.randint(500, 50000)
                 growth = round(random.uniform(-20, 150), 1)
                 likes = random.randint(100, 50000)
-                comments = random.randint(10, 5000)
+                comment_count = random.randint(10, 5000)
                 shares = random.randint(5, 2000)
                 views = random.randint(1000, 200000)
-                engagement = (likes + comments + shares) / max(views, 1)
+                engagement = (likes + comment_count + shares) / max(views, 1)
                 sellers = random.randint(3, 150)
 
                 product = ProductInsight(
@@ -402,7 +463,7 @@ class ProductPipeline:
                     seller_count=sellers,
                     avg_price=round(price * random.uniform(0.8, 1.2), 2),
                     likes=likes,
-                    comments=comments,
+                    comments=comment_count,
                     shares=shares,
                     engagement_rate=engagement,
                     source="mock",
@@ -410,6 +471,17 @@ class ProductPipeline:
                     fetched_at=datetime.now(timezone.utc),
                 )
                 products.append(product)
+
+                # 匹配商品标题到模拟评论
+                matched_key = None
+                for key in mock_reviews:
+                    if key.lower() in title.lower():
+                        matched_key = key
+                        break
+                if not matched_key:
+                    matched_key = list(mock_reviews.keys())[i % len(mock_reviews)]
+                pid = f"mock_{market_code}_{i}"
+                self._mock_comments[pid] = mock_reviews[matched_key]
 
         self.logger.info("生成 %d 条模拟商品数据 (市场: %s)",
                          len(products), markets)
