@@ -12,7 +12,7 @@ FastMoss 是目前 TikTok 电商数据量最大的平台（5亿+商品）。
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
@@ -238,7 +238,7 @@ class FastMossClient:
             engagement_rate=engagement_rate,
             source=source,
             market=market,
-            fetched_at=datetime.utcnow(),
+            fetched_at=datetime.now(timezone.utc),
         )
 
 

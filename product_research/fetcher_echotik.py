@@ -18,7 +18,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from product_research import Market, ProductInsight
@@ -207,7 +207,7 @@ class EchoTikClient:
                             engagement_rate=engagement,
                             source="echotik",
                             market=Market.US,  # 调用方修正
-                            fetched_at=datetime.utcnow(),
+                            fetched_at=datetime.now(timezone.utc),
                         ))
                     except (ValueError, TypeError):
                         pass

@@ -265,8 +265,17 @@ class ProductPipeline:
             f"• 📈 趋势上升 (≥{trending_score}分): {stats['trending_count']} 个\n"
             f"• 推送通知: {stats['pushed']} 条"
         )
+        # 通知和日志分开：通知保留 emoji，日志用纯文本避免 GBK 编码问题
         self.notifier.send_text(summary)
-        self.logger.info(summary)
+        log_summary = (
+            f"[RESULT] 选品分析完成 [run_id={run_id}]\n"
+            f"  市场: {', '.join(m.upper() for m in markets)}\n"
+            f"  商品: {stats['products_fetched']} 条 | "
+            f"爆品: {stats['hot_count']} | "
+            f"趋势: {stats['trending_count']} | "
+            f"推送: {stats['pushed']}"
+        )
+        self.logger.info(log_summary)
 
         # 记录分析日志
         top_score = scores[0].score if scores else 0.0
@@ -339,7 +348,7 @@ class ProductPipeline:
         当 FastMoss API 不可用时生成模拟商品数据
         """
         import random
-        from datetime import datetime
+        from datetime import datetime, timezone
         from product_research import Market, ProductInsight
 
         mock_titles = {
@@ -396,7 +405,7 @@ class ProductPipeline:
                     engagement_rate=engagement,
                     source="mock",
                     market=market_enum,
-                    fetched_at=datetime.utcnow(),
+                    fetched_at=datetime.now(timezone.utc),
                 )
                 products.append(product)
 

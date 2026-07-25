@@ -371,8 +371,8 @@ class TrendAnalyzer:
 
         简化版：未来可接入 Google Trends API 细化。
         """
-        from datetime import datetime
-        month = datetime.utcnow().month
+        from datetime import datetime, timezone
+        month = datetime.now(timezone.utc).month
 
         # 不同市场的旺季月份
         season_map = {
