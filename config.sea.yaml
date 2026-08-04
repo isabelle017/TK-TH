@@ -10,7 +10,7 @@
 
 # ---------- API Keys ----------
 api_keys:
-  # FastMoss — 无公开 REST API，实际运行中自动降级到其他数据源
+  # 旧版专有接口占位；新流程使用下方官方 MCP / OpenAPI / Data Export。
   fastmoss: ""
 
   # AI 翻译+情感分析 (使用 DeepSeek 替代 OpenAI，国内可直接访问)
@@ -34,9 +34,9 @@ api_keys:
 
 # ---------- 通知配置 ----------
 notify:
-  # QQ 邮箱通知 (国内网络友好，稳定可靠)
-  channel: "email"
-  alert_channel: "email"
+  # 默认零配置输出到运行窗口；后续可由我协助切换邮件或 Telegram。
+  channel: "console"
+  alert_channel: "console"
 
   email:
     enabled: true
@@ -53,27 +53,69 @@ notify:
 
 # ---------- 数据源配置 ----------
 sources:
-  # FastMoss — 无公开 REST API，保持 enabled: false
+  # 旧版非公开接口，保持关闭。
   fastmoss:
     enabled: false
     # 东南亚市场代码
     markets:
       - "th"        # 泰国
-      - "vn"        # 越南
-      - "my"        # 马来西亚
     daily_limit: 500
     fetch_times:
       - "08:00"
       - "12:00"
       - "20:00"
 
-  # EchoTik — 当前主力数据源（需配置 Cookie）
-  echotik:
+  # 免费且可审计：从 TikTok Seller Center / Creative Center 手工整理后导入。
+  manual_csv:
     enabled: true
-    markets:
-      - "th"
-      - "vn"
-      - "my"
+    path: "data/input/products.csv"
+
+  # FastMoss 官方 MCP：不需要店铺，3 天免费试用期间优先获取真实泰国数据。
+  # Key 仅从本机 FASTMOSS_MCP_KEY 环境变量读取，不写入配置或日志。
+  fastmoss_mcp:
+    enabled: true
+    base_url: "https://mcp.fastmoss.com/mcp"
+    results_per_category: 10
+    retries: 3
+    thb_to_usd: 0.028
+    queries:
+      - category_code: "home_daily"
+        category_path: [10, 851848, 600621]  # 居家日用 > 家居收纳 > 收纳盒
+        min_price_local: 286                 # THB，约 USD 8
+        max_price_local: 893                 # THB，约 USD 25
+      - category_code: "affordable_jewelry"
+        category_path: [8, 905608]           # 时尚配件 > 平价饰品
+        min_price_local: 215                 # THB，约 USD 6
+        max_price_local: 714                 # THB，约 USD 20
+
+  # FastMoss Developer Center OpenAPI；当前试用审批中，获批并测试后再启用。
+  fastmoss_api:
+    enabled: false
+    page_size: 20
+    pages: 1
+    thb_to_usd: 0.028
+
+  # 推荐：使用现有 FastMoss 会员的官方导出功能，不抓取会员网页。
+  fastmoss_export:
+    enabled: true
+    directory: "C:/Users/isabe/Downloads"
+    filename_keywords:
+      - "fastmoss"
+      - "家居日用"
+      - "平价首饰"
+    price_currency: "USD"
+
+  # 官方 Basic Auth API；CSV 不存在时自动尝试。当前账号额度不足时会安全停止。
+  echotik_api:
+    enabled: false
+    page_size: 10
+    pages: 1
+    sales_trend_flag: 1
+    min_total_sale_cnt: 100
+    product_sort_field: 4   # 近7天销量
+    sort_type: 1            # 降序
+    off_mark: 0             # 仅在售
+    thb_to_usd: 0.028       # 仅当 SKU 明确标记为 THB 时使用；运行前更新汇率
 
 # ---------- 趋势评分权重 (SEA 特化版) ----------
 # SEA与欧美权重差异说明:
@@ -83,23 +125,24 @@ sources:
 #   - 竞争权重 →: 同
 scoring:
   weights:
-    sales_growth_7d: 0.40     # 增长 (↑重, 市场仍在快速扩张)
-    competition_inverse: 0.20 # 竞争 (→)
-    estimated_margin: 0.15    # 利润 (↓轻, SEA客单价低)
-    seasonality: 0.10         # 季节性 (→)
-    engagement_rate: 0.15     # 互动 (↑重, SEA社交电商属性更强)
+    sales_growth_7d: 0.30
+    competition_inverse: 0.15
+    estimated_margin: 0.30    # 利益最大化必须让贡献利润与增长同权
+    seasonality: 0.10
+    engagement_rate: 0.15
 
   thresholds:
-    notify_min_score: 65      # 推送门槛稍低(SEA市场信息差更大)
-    hot_score: 82             # 爆品标记线
-    trending_score: 72        # 趋势标记线
+    notify_min_score: 70
+    hot_score: 85
+    trending_score: 78
 
   # SEA 细分市场微调
   market_overrides:
     th:   # 泰国 - 直播电商发达，互动权重更高
-      engagement_rate: 0.18
-      sales_growth_7d: 0.37
-      estimated_margin: 0.15
+      engagement_rate: 0.15
+      sales_growth_7d: 0.30
+      estimated_margin: 0.30
+      competition_inverse: 0.15
     vn:   # 越南 - 增长极快，COD退货高，利润权重压低
       sales_growth_7d: 0.45
       estimated_margin: 0.10
@@ -110,7 +153,7 @@ scoring:
 
 # ---------- GPT 分析 (SEA语言版) ----------
 gpt_analysis:
-  enabled: true
+  enabled: false             # 默认零 API 成本；有真实评论和预算后再启用
   max_comments: 50
   # Weelinking GPT-5.4-mini 经济高效，适合批量情感分析
   model: "gpt-5.4-mini"
@@ -126,6 +169,82 @@ gpt_analysis:
   # 翻译引擎: chatgpt / google / hybrid
   # hybrid = ChatGPT优先，遇到不支持语言自动降级 Google
   translation_engine: "hybrid"
+
+# ---------- 投资闸门与单位经济 ----------
+# 下列费率是保守的模型起点，不是 TikTok 官方固定费率。上线前必须用你的合同、
+# 类目费率、物流报价和真实退货数据覆盖；所有 rate 均用 0-1 小数表示。
+investment_gates:
+  min_contribution_margin: 0.12
+  max_break_even_roas: 3.5
+  min_sales_volume: 100
+  min_research_score: 55
+  min_content_score: 60
+  max_prelaunch_moq: 100
+  max_lead_time_days: 30
+
+# 两条首发赛道使用独立门槛。标签由候选 CSV 的 product_flags 提供，分号分隔。
+category_profiles:
+  home_daily:
+    label: "家居日用"
+    min_price_usd: 8
+    max_price_usd: 25
+    min_content_score: 65
+    max_prelaunch_moq: 50
+    max_lead_time_days: 20
+    required_for_sample:
+      - "weight_kg"
+      - "longest_side_cm"
+      - "quality_evidence"
+    disallowed_flags:
+      - "electric"
+      - "battery"
+      - "liquid"
+      - "fragile"
+      - "oversized"
+      - "food_contact"
+      - "medical_claim"
+  affordable_jewelry:
+    label: "平价首饰"
+    min_price_usd: 6
+    max_price_usd: 20
+    min_content_score: 70
+    max_prelaunch_moq: 50
+    max_lead_time_days: 20
+    required_for_sample:
+      - "material_spec"
+      - "quality_evidence"
+      - "weight_kg"
+    disallowed_flags:
+      - "precious_metal_claim"
+      - "natural_gem_claim"
+      - "children_jewelry"
+      - "unknown_material"
+
+# 店铺注册不会阻塞选品。注册完成后只更新这里，系统会覆盖对应市场费率。
+store_profile:
+  registered: false
+  market: "th"
+  seller_id: ""
+  shop_type: "cross_border"
+  economics_overrides: {}
+
+unit_economics:
+  markets:
+    th:
+      cogs_rate: 0.32
+      platform_fee_rate: 0.08
+      creator_commission_rate: 0.15
+      payment_fee_rate: 0.02
+      seller_discount_rate: 0.08
+      ad_spend_rate: 0.12
+      return_rate: 0.08
+      cod_share: 0.20
+      cod_rejection_rate: 0.10
+      return_recovery_rate: 0.70
+      outbound_shipping_per_order: 1.00
+      return_shipping_per_order: 1.00
+      cod_rejection_cost_per_order: 0.80
+      packaging_per_order: 0.25
 
 # ---------- 客服配置 (SEA版) ----------
 customer_service:

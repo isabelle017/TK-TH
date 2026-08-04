@@ -15,6 +15,9 @@ env/
 # 数据库 (保留目录)
 data/*.db
 data/*.sqlite
+data/input/products.csv
+data/input/echotik_raw.json
+reports/*.md
 
 # 日志
 logs/*.log

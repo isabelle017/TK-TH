@@ -52,14 +52,35 @@ class ProductInsight(BaseModel):
     title: str = Field(..., description="商品标题")
     price: float = Field(..., ge=0, description="售价 (USD)")
     sales_volume: int = Field(..., ge=0, description="总销量")
-    sales_growth_7d: float = Field(default=0.0, description="近7天销量增长率 (小数, 如 0.35 = +35%)")
-    sales_growth_30d: float = Field(default=0.0, description="近30天销量增长率")
+    sales_growth_7d: float = Field(default=0.0, description="近7天销量增长率（百分点，如 35 = +35%）")
+    sales_growth_30d: float = Field(default=0.0, description="近30天销量增长率（百分点）")
     revenue_estimate: Optional[float] = Field(default=None, description="预估月收入 (USD)")
 
     # 竞争数据
     seller_count: int = Field(default=0, ge=0, description="在售卖家数")
     avg_price: float = Field(default=0.0, ge=0, description="同类商品均价 (USD)")
     price_position: str = Field(default="mid", description="定价位置: low/mid/high")
+
+    # 店铺注册前即可收集的供应链与风险字段；缺失时只允许进入询价阶段。
+    unit_cost_usd: Optional[float] = Field(default=None, ge=0)
+    outbound_shipping_usd: Optional[float] = Field(default=None, ge=0)
+    packaging_usd: Optional[float] = Field(default=None, ge=0)
+    creator_commission_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    platform_fee_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    expected_return_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    expected_cod_share: Optional[float] = Field(default=None, ge=0, le=1)
+    expected_cod_rejection_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    content_score: Optional[float] = Field(default=None, ge=0, le=100)
+    compliance_risk: str = Field(default="unknown", description="low/medium/high/unknown")
+    supplier_moq: Optional[int] = Field(default=None, ge=0)
+    lead_time_days: Optional[int] = Field(default=None, ge=0)
+    source_url: Optional[str] = None
+    category_code: str = Field(default="", description="内部赛道代码")
+    product_flags: list[str] = Field(default_factory=list)
+    material_spec: Optional[str] = None
+    quality_evidence: bool = False
+    weight_kg: Optional[float] = Field(default=None, ge=0)
+    longest_side_cm: Optional[float] = Field(default=None, ge=0)
 
     # TikTok 互动
     likes: int = Field(default=0, ge=0, description="总点赞数")
@@ -72,7 +93,9 @@ class ProductInsight(BaseModel):
     market: Market = Field(..., description="所属市场")
 
     # 时间
-    fetched_at: datetime = Field(default_factory=datetime.utcnow, description="抓取时间")
+    fetched_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="抓取时间"
+    )
 
     model_config = {"frozen": False, "extra": "ignore"}
 
@@ -133,6 +156,15 @@ class TrendScore(BaseModel):
     margin_score: float = Field(default=0.0, description="利润维度得分 (0-100)")
     engagement_score: float = Field(default=0.0, description="互动维度得分 (0-100)")
     seasonality_score: float = Field(default=1.0, description="季节性系数 (0.5-2.0)")
+    estimated_contribution_margin: Optional[float] = Field(
+        default=None, description="按配置假设估算的单均贡献利润率"
+    )
+    max_allowable_cpa: Optional[float] = Field(
+        default=None, description="盈亏平衡前最大可承受获客成本 (USD)"
+    )
+    break_even_roas: Optional[float] = Field(
+        default=None, description="按配置假设估算的盈亏平衡 ROAS"
+    )
     # 推理备注
     reasoning: str = Field(default="", description="评分的简要推理说明")
 
@@ -144,7 +176,7 @@ class SentimentResult(BaseModel):
     pain_points: list[str] = Field(default_factory=list, description="用户抱怨的点")
     improvement_suggestions: list[str] = Field(default_factory=list, description="优化建议")
     overall_sentiment: str = Field(default="neutral", description="整体情感: positive/neutral/negative")
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class PushMessage(BaseModel):
@@ -188,6 +220,7 @@ class PushMessage(BaseModel):
         return (
             f"{self.title}\n"
             f"{region_tag}\n\n"
+            f"{self.body}\n\n"
             f"🏆 **评分**: {self.score:.0f}/100\n"
             f"📊 **来源**: {self.source.upper()} | {self.market.upper()}\n"
             f"🆔 **商品ID**: `{self.product_id}`\n"

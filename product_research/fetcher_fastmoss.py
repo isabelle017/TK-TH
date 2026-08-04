@@ -1,11 +1,10 @@
 """
-FastMoss API 客户端
+FastMoss 旧版专有接口占位客户端
 
 FastMoss 是目前 TikTok 电商数据量最大的平台（5亿+商品）。
 接口文档: https://open.fastmoss.com/
 
-注意：FastMoss 没有公开的 REST API。如果需要对接官方接口，
-请联系 FastMoss 商务团队（sales@fastmoss.com）获取专有对接方案。
+新流程使用官方 MCP、OpenAPI 或会员 Data Export；此文件只保留旧配置兼容性。
 
 本客户端当前仅作为占位符，返回空列表以便 pipeline 降级到其他数据源。
 """
@@ -58,8 +57,8 @@ class FastMossClient:
         if not self._available:
             logger = logging.getLogger(__name__)
             logger.warning(
-                "FastMoss 没有公开的 REST API，已降级跳过。"
-                "如需对接请联系 FastMoss 商务团队。"
+                "FastMoss 旧版专有接口未配置，已降级跳过。"
+                "请改用官方 MCP、OpenAPI 或 Data Export。"
             )
 
         self._client = httpx.AsyncClient(

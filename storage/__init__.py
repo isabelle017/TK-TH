@@ -126,21 +126,32 @@ class Storage:
         with self.Session() as session:
             for product in products:
                 score = score_map.get(product.product_id)
-                record = ProductRecord(
-                    product_id=product.product_id,
-                    title=product.title,
-                    price=product.price,
-                    sales_volume=product.sales_volume,
-                    sales_growth_7d=product.sales_growth_7d,
-                    seller_count=product.seller_count,
-                    engagement_rate=product.engagement_rate,
-                    source=product.source,
-                    market=product.market.value,
-                    trend_score=score.score if score else 0.0,
-                    trend_direction=score.direction.value if score else "stable",
-                    fetched_at=product.fetched_at,
+                record = (
+                    session.query(ProductRecord)
+                    .filter_by(
+                        product_id=product.product_id,
+                        market=product.market.value,
+                        source=product.source,
+                    )
+                    .order_by(ProductRecord.id.desc())
+                    .first()
                 )
-                session.add(record)
+                if record is None:
+                    record = ProductRecord(
+                        product_id=product.product_id,
+                        source=product.source,
+                        market=product.market.value,
+                    )
+                    session.add(record)
+                record.title = product.title
+                record.price = product.price
+                record.sales_volume = product.sales_volume
+                record.sales_growth_7d = product.sales_growth_7d
+                record.seller_count = product.seller_count
+                record.engagement_rate = product.engagement_rate
+                record.trend_score = score.score if score else 0.0
+                record.trend_direction = score.direction.value if score else "stable"
+                record.fetched_at = product.fetched_at
                 saved += 1
 
             session.commit()

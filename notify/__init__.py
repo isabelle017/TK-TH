@@ -182,6 +182,9 @@ class Notifier:
 
     def send(self, message: PushMessage) -> bool:
         """推送消息到所有已配置的渠道"""
+        if self.channel == "console":
+            logger.info("\n%s", message.format_telegram())
+            return True
         ok = True
 
         if self._telegram:
@@ -202,6 +205,9 @@ class Notifier:
 
     def send_text(self, text: str) -> bool:
         """发送纯文本通知"""
+        if self.channel == "console":
+            logger.info("\n%s", text)
+            return True
         ok = True
         if self._telegram:
             ok = self._telegram.send_text(text) and ok

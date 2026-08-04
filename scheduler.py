@@ -26,18 +26,30 @@ from dotenv import load_dotenv
 
 from product_research import ProductInsight, PushMessage, TrendScore
 from product_research.fetcher_fastmoss import FastMossClient, fetch_trending_products as fetch_fastmoss
-from product_research.fetcher_echotik import EchoTikClient
+from product_research.fetcher_fastmoss_export import fetch_fastmoss_exports
+from product_research.fetcher_fastmoss_api import fetch_fastmoss_api_products
+from product_research.fetcher_fastmoss_mcp import fetch_fastmoss_mcp_products
+from product_research.fetcher_csv import fetch_products_from_csv
+from product_research.fetcher_echotik_api import fetch_echotik_products
 from product_research.analyzer_trend import (
     ScoringThresholds,
     ScoringWeights,
     TrendAnalyzer,
 )
 from product_research.analyzer_sentiment import SentimentAnalyzer
+from product_research.unit_economics import UnitEconomicsAssumptions
+from product_research.selection_engine import SelectionStage, decide_selection_stage
+from product_research.selection_report import write_selection_report
 from notify import Notifier
 from storage import create_storage, Storage
 
 # 加载 .env 文件
 load_dotenv()
+
+# Windows 默认 GBK 控制台无法稳定输出泰语、中文和 emoji。
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
 
 # ──────────────────────────────────────────────
 # 日志配置
@@ -56,7 +68,7 @@ def setup_logging(config: dict):
     handlers = [
         logging.StreamHandler(sys.stdout),
         logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=10 * 1024 * 1024, backupCount=5,
+            log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8",
         ),
     ]
 
@@ -77,21 +89,42 @@ class ProductPipeline:
     选品分析流水线
 
     完整的处理链路：
-    1. 从数据源抓取趋势商品（FastMoss → EchoTik → Mock 降级）
+    1. 从可审计数据源获取趋势商品（手工 CSV → 已授权数据源）
     2. 趋势评分算法计算
     3. (可选) ChatGPT 评论情感分析
     4. 存储到数据库
     5. 推送高分商品到即时通讯
     """
 
-    def __init__(self, config: dict, storage: Optional[Storage] = None, region: str = "us"):
+    def __init__(
+        self,
+        config: dict,
+        storage: Optional[Storage] = None,
+        region: str = "us",
+        demo_mode: bool = False,
+    ):
         self.config = config
         self.region = region
+        self.demo_mode = demo_mode
         self.logger = logging.getLogger("pipeline")
 
         # 评分引擎
         weights_cfg = config.get("scoring", {}).get("weights", {})
         thresholds_cfg = config.get("scoring", {}).get("thresholds", {})
+        economics_cfg = {
+            market: dict(values)
+            for market, values in config.get("unit_economics", {}).get("markets", {}).items()
+        }
+        store_profile = config.get("store_profile", {})
+        if store_profile.get("registered", False):
+            store_market = store_profile.get("market", "th")
+            economics_cfg.setdefault(store_market, {}).update(
+                store_profile.get("economics_overrides", {})
+            )
+        economics_by_market = {
+            market: UnitEconomicsAssumptions.from_mapping(values)
+            for market, values in economics_cfg.items()
+        }
         self.analyzer = TrendAnalyzer(
             weights=ScoringWeights(
                 sales_growth_7d=weights_cfg.get("sales_growth_7d", 0.35),
@@ -105,7 +138,19 @@ class ProductPipeline:
                 hot_score=thresholds_cfg.get("hot_score", 85),
                 trending_score=thresholds_cfg.get("trending_score", 75),
             ),
+            economics_by_market=economics_by_market,
         )
+
+        gates_cfg = config.get("investment_gates", {})
+        self.min_contribution_margin = float(gates_cfg.get("min_contribution_margin", 0.12))
+        self.max_break_even_roas = float(gates_cfg.get("max_break_even_roas", 3.5))
+        self.min_sales_volume = int(gates_cfg.get("min_sales_volume", 100))
+        self.gates_cfg = gates_cfg
+        self.selection_rules = {
+            **gates_cfg,
+            "category_profiles": config.get("category_profiles", {}),
+        }
+        self.selection_decisions = {}
 
         # 通知器
         notify_cfg = config.get("notify", {})
@@ -160,20 +205,66 @@ class ProductPipeline:
         self.logger.info("=" * 50)
 
         stats = {"products_fetched": 0, "pushed": 0, "hot_count": 0,
-                 "trending_count": 0, "errors": 0, "run_id": run_id}
+                 "trending_count": 0, "investable_count": 0, "errors": 0,
+                 "status": "running", "run_id": run_id}
 
         if not markets:
             sources_cfg = self.config.get("sources", {})
             markets = sources_cfg.get("fastmoss", {}).get("markets", ["us"])
 
-        # ── 第一步：数据获取（多源降级） ──
-        # 优先级: FastMoss → EchoTik → Mock
+        # ── 第一步：数据获取（真实数据失败时禁止伪造投资信号） ──
         all_products = []
 
-        # 1a) 尝试 FastMoss
         sources_cfg = self.config.get("sources", {})
+        csv_cfg = sources_cfg.get("manual_csv", {})
+        if csv_cfg.get("enabled", False):
+            csv_path = csv_cfg.get("path", "data/input/products.csv")
+            self.logger.info("正在读取可审计 CSV 数据: %s", csv_path)
+            try:
+                all_products = fetch_products_from_csv(csv_path, markets)
+            except Exception as exc:
+                self.logger.error("CSV 数据无效: %s", exc)
+                stats["errors"] += 1
+
+        echotik_cfg = sources_cfg.get("echotik_api", {})
+        fastmoss_mcp_cfg = sources_cfg.get("fastmoss_mcp", {})
+        if not all_products and fastmoss_mcp_cfg.get("enabled", False):
+            self.logger.info("正在从 FastMoss 官方 MCP 获取泰国商品")
+            try:
+                all_products = await fetch_fastmoss_mcp_products(markets, fastmoss_mcp_cfg)
+            except Exception as exc:
+                self.logger.error("FastMoss MCP 不可用，降级到官方导出: %s", exc)
+                stats["errors"] += 1
+
+        fastmoss_api_cfg = sources_cfg.get("fastmoss_api", {})
+        if not all_products and fastmoss_api_cfg.get("enabled", False):
+            self.logger.info("正在从 FastMoss 官方 OpenAPI 获取商品榜")
+            try:
+                all_products = await fetch_fastmoss_api_products(markets, fastmoss_api_cfg)
+            except Exception as exc:
+                self.logger.error("FastMoss 官方 API 不可用: %s", exc)
+                stats["errors"] += 1
+
+        fastmoss_export_cfg = sources_cfg.get("fastmoss_export", {})
+        if not all_products and fastmoss_export_cfg.get("enabled", False):
+            self.logger.info("正在读取 FastMoss 会员导出文件")
+            try:
+                all_products = fetch_fastmoss_exports(fastmoss_export_cfg, markets)
+            except Exception as exc:
+                self.logger.error("FastMoss 导出文件无效: %s", exc)
+                stats["errors"] += 1
+
+        if not all_products and echotik_cfg.get("enabled", False):
+            self.logger.info("正在从 EchoTik 官方 API 获取真实商品数据")
+            try:
+                all_products = await fetch_echotik_products(markets, echotik_cfg)
+            except Exception as exc:
+                self.logger.error("EchoTik 官方 API 不可用: %s", exc)
+                stats["errors"] += 1
+
+        # FastMoss 仅在用户已取得合法专有接口时启用。
         fastmoss_cfg = sources_cfg.get("fastmoss", {})
-        if fastmoss_cfg.get("enabled", True):
+        if not all_products and fastmoss_cfg.get("enabled", False):
             self.logger.info("正在从 FastMoss 抓取数据: markets=%s", markets)
             try:
                 all_products = await fetch_fastmoss(markets=markets, days=days)
@@ -181,34 +272,23 @@ class ProductPipeline:
                 self.logger.warning("FastMoss 抓取失败: %s", exc)
                 stats["errors"] += 1
 
-        # 1b) FastMoss 无数据 → 尝试 EchoTik
+        # 模拟数据只用于显式演示，永远不能静默进入生产决策。
         if not all_products:
-            echotik_cfg = sources_cfg.get("echotik", {})
-            if echotik_cfg.get("enabled", False):
-                self.logger.info("FastMoss 无数据，尝试从 EchoTik 抓取...")
-                try:
-                    cookie = os.getenv("ECHO_TIK_COOKIE", "") or echotik_cfg.get("cookie", "")
-                    if cookie and cookie != "${ECHO_TIK_COOKIE}":
-                        client = EchoTikClient(cookie=cookie)
-                        for market in markets:
-                            products = await client.get_trending_products(market=market, days=days)
-                            all_products.extend(products)
-                        await client.close()
-                    else:
-                        self.logger.info("EchoTik Cookie 未配置，跳过")
-                except Exception as exc:
-                    self.logger.warning("EchoTik 抓取失败: %s", exc)
-                    stats["errors"] += 1
-
-        # 1c) 全部失败 → 模拟数据兜底
-        if not all_products:
-            self.logger.warning("所有数据源均不可用，使用模拟数据")
-            all_products = self._generate_mock_products(markets)
-            if not all_products:
-                await self._notify_error("无法获取任何商品数据")
+            if self.demo_mode:
+                self.logger.warning("DEMO 模式：使用模拟数据，结果禁止用于采购或投放")
+                all_products = self._generate_mock_products(markets)
+                stats["status"] = "demo"
+            else:
+                stats["errors"] += 1
+                stats["status"] = "data_source_unavailable"
+                await self._notify_error(
+                    "没有可用的真实商品数据；任务已安全停止，未生成爆品或投资建议"
+                )
                 return stats
 
         stats["products_fetched"] = len(all_products)
+        if stats["status"] == "running":
+            stats["status"] = "ok"
         self.logger.info("获取到 %d 条商品", len(all_products))
 
         # ── 第二步：趋势评分 ──
@@ -220,6 +300,32 @@ class ProductPipeline:
 
         # 按评分排序
         scored.sort(key=lambda x: x[1].score, reverse=True)
+
+        # 店铺注册前阶段判断：无准确成本时最多进入询价阶段。
+        decision_rows = []
+        for product, score in scored:
+            decision = decide_selection_stage(product, score, self.selection_rules)
+            self.selection_decisions[product.product_id] = decision
+            decision_rows.append((product, score, decision))
+        report_path = write_selection_report(decision_rows)
+        stats["selection_report"] = report_path
+        stats["sample_test_count"] = sum(
+            1 for _, _, decision in decision_rows
+            if decision.stage == SelectionStage.SAMPLE_TEST
+        )
+        stats["supplier_validation_count"] = sum(
+            1 for _, _, decision in decision_rows
+            if decision.stage == SelectionStage.SUPPLIER_VALIDATION
+        )
+        stats["watch_count"] = sum(
+            1 for _, _, decision in decision_rows
+            if decision.stage == SelectionStage.WATCH
+        )
+        stats["rejected_count"] = sum(
+            1 for _, _, decision in decision_rows
+            if decision.stage == SelectionStage.REJECT
+        )
+        self.logger.info("店铺注册前选品报告已生成: %s", report_path)
 
         # ── 第三步：保存到数据库 ──
         products = [s[0] for s in scored]
@@ -250,6 +356,7 @@ class ProductPipeline:
 
         # ── 第五步：推送通知 ──
         push_messages = self._build_push_messages(scored, sentiment_results)
+        stats["investable_count"] = len(push_messages)
         if push_messages:
             pushed = self.notifier.send_batch(push_messages)
             stats["pushed"] = pushed
@@ -270,6 +377,8 @@ class ProductPipeline:
             f"• 抓取商品: {stats['products_fetched']} 条\n"
             f"• 🔥 爆品潜力 (≥{hot_score}分): {stats['hot_count']} 个\n"
             f"• 📈 趋势上升 (≥{trending_score}分): {stats['trending_count']} 个\n"
+            f"• 🧪 可进入样品测试: {stats['sample_test_count']} 个\n"
+            f"• 📋 待询价/合规: {stats['supplier_validation_count']} 个\n"
             f"• 推送通知: {stats['pushed']} 条"
         )
         # 通知和日志分开：通知保留 emoji，日志用纯文本避免 GBK 编码问题
@@ -313,6 +422,8 @@ class ProductPipeline:
         for product, score in scored:
             if score.score < threshold:
                 continue
+            if not self._passes_investment_gates(product, score):
+                continue
 
             # 标题标签
             if score.score >= self.analyzer.thresholds.hot_score:
@@ -323,10 +434,16 @@ class ProductPipeline:
                 tag = "👀 值得关注"
 
             title = f"{tag} | {product.title[:50]}"
+            economics_line = (
+                f"💹 贡献利润率(估): {(score.estimated_contribution_margin or 0):.1%} | "
+                f"保本ROAS: {(score.break_even_roas or 0):.2f} | "
+                f"最大CPA: ${(score.max_allowable_cpa or 0):.2f}\n"
+            )
             body = (
                 f"💰 售价: ${product.price:.2f} | 销量: {product.sales_volume:,}\n"
                 f"📈 7日增长: {product.sales_growth_7d:.1f}%\n"
                 f"🏪 在售卖家: {product.seller_count} | 互动率: {product.engagement_rate*100:.2f}%\n"
+                f"{economics_line}"
                 f"📊 综合评分: {score.score:.0f}/100 | {score.reasoning}"
             )
 
@@ -343,6 +460,23 @@ class ProductPipeline:
             ))
 
         return messages
+
+    def _passes_investment_gates(self, product: ProductInsight, score: TrendScore) -> bool:
+        """Prevent attractive traffic metrics from hiding negative economics."""
+        if product.source == "mock":
+            return False
+        decision = self.selection_decisions.get(product.product_id)
+        if decision is not None:
+            return decision.stage == SelectionStage.SAMPLE_TEST
+        margin = score.estimated_contribution_margin
+        break_even_roas = score.break_even_roas
+        return bool(
+            margin is not None
+            and margin >= self.min_contribution_margin
+            and break_even_roas is not None
+            and break_even_roas <= self.max_break_even_roas
+            and product.sales_volume >= self.min_sales_volume
+        )
 
     async def _notify_error(self, message: str):
         """推送错误通知"""
@@ -536,7 +670,7 @@ REGION_CONFIG_MAP = {
 }
 
 DEFAULT_MARKETS: dict[str, list[str]] = {
-    "sea": ["th", "vn", "my"],
+    "sea": ["th"],
     "us": ["us", "uk", "jp"],
     "eu": ["de", "fr", "es", "it"],
 }
@@ -595,6 +729,10 @@ def main():
         "--days", type=int, default=7,
         help="数据回溯天数 (默认 7)"
     )
+    parser.add_argument(
+        "--demo", action="store_true",
+        help="显式启用随机模拟数据；结果禁止用于采购、投放或财务决策"
+    )
     args = parser.parse_args()
 
     # 确定配置文件 (在 logging 初始化之前用 print)
@@ -650,16 +788,19 @@ def main():
     if args.once:
         # 一次性运行
         logger.info("一次性运行模式 - 区域: %s, 市场: %s", args.region, markets)
-        pipeline = ProductPipeline(config)
+        pipeline = ProductPipeline(config, demo_mode=args.demo)
         pipeline.region = args.region  # 标记区域
-        asyncio.run(pipeline.run_once(markets=markets, days=args.days))
+        result = asyncio.run(pipeline.run_once(markets=markets, days=args.days))
+        if result.get("status") == "data_source_unavailable":
+            logger.error("没有真实数据，任务以失败状态退出")
+            raise SystemExit(2)
     else:
         # 定时调度模式
         logger.info("定时调度模式 - 区域: %s", args.region)
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
         from apscheduler.triggers.cron import CronTrigger
 
-        pipeline = ProductPipeline(config)
+        pipeline = ProductPipeline(config, demo_mode=args.demo)
         pipeline.region = args.region
 
         scheduler = AsyncIOScheduler()

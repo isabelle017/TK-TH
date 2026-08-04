@@ -1,19 +1,14 @@
 """
 趋势评分算法
 
-核心公式:
-    score = w1 * growth_score       (销量增长率 0-100)
-          + w2 * competition_score  (竞争度 0-100, 卖家越少分越高)
-          + w3 * margin_score       (利润率估算 0-100)
-          + w4 * engagement_score   (互动率 0-100)
-          * seasonality_coefficient (季节性系数 0.5-2.0)
+核心公式是增长、竞争、贡献利润、互动和季节性的加权平均。
 
 所有权重通过 config.yaml 配置，默认值针对 TikTok 选品优化。
 """
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from product_research import (
@@ -21,6 +16,10 @@ from product_research import (
     ProductInsight,
     TrendDirection,
     TrendScore,
+)
+from product_research.unit_economics import (
+    UnitEconomicsAssumptions,
+    estimate_unit_economics,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,8 +42,15 @@ class ScoringWeights:
             + self.seasonality
             + self.engagement_rate
         )
+        if total <= 0:
+            raise ValueError("评分权重之和必须大于 0")
         if abs(total - 1.0) > 0.01:
-            logger.warning("权重之和为 %.2f，不等于 1.0，将自动归一化", total)
+            logger.warning("权重之和为 %.2f，不等于 1.0，已自动归一化", total)
+            self.sales_growth_7d /= total
+            self.competition_inverse /= total
+            self.estimated_margin /= total
+            self.seasonality /= total
+            self.engagement_rate /= total
 
 
 @dataclass
@@ -180,18 +186,39 @@ class TrendAnalyzer:
         self,
         weights: Optional[ScoringWeights] = None,
         thresholds: Optional[ScoringThresholds] = None,
+        economics_by_market: Optional[dict[str, UnitEconomicsAssumptions]] = None,
     ):
         self.weights = weights or ScoringWeights()
         self.weights.validate()
         self.thresholds = thresholds or ScoringThresholds()
+        self.economics_by_market = economics_by_market or {}
 
     def analyze(self, product: ProductInsight) -> TrendScore:
         """对单个商品进行趋势评分"""
         growth_score = self._score_growth(product)
         competition_score = self._score_competition(product)
-        margin_score = self._score_margin(product)
+        assumptions = self.economics_by_market.get(
+            product.market.value, UnitEconomicsAssumptions()
+        )
+        overrides = {
+            "cogs_per_unit": product.unit_cost_usd,
+            "outbound_shipping_per_order": product.outbound_shipping_usd,
+            "packaging_per_order": product.packaging_usd,
+            "creator_commission_rate": product.creator_commission_rate,
+            "platform_fee_rate": product.platform_fee_rate,
+            "return_rate": product.expected_return_rate,
+            "cod_share": product.expected_cod_share,
+            "cod_rejection_rate": product.expected_cod_rejection_rate,
+        }
+        assumptions = replace(
+            assumptions,
+            **{key: value for key, value in overrides.items() if value is not None},
+        )
+        economics = estimate_unit_economics(product.price, assumptions)
+        margin_score = self._score_margin(economics.contribution_margin)
         engagement_score = self._score_engagement(product)
         seasonality_coeff = self._seasonality_coefficient(product.market)
+        seasonality_score = max(0.0, min(100.0, 50.0 + (seasonality_coeff - 1.0) * 125.0))
 
         # 加权计算
         raw_score = (
@@ -199,7 +226,8 @@ class TrendAnalyzer:
             + self.weights.competition_inverse * competition_score
             + self.weights.estimated_margin * margin_score
             + self.weights.engagement_rate * engagement_score
-        ) * seasonality_coeff
+            + self.weights.seasonality * seasonality_score
+        )
 
         # 钳制到 0-100
         final_score = max(0.0, min(100.0, raw_score))
@@ -218,7 +246,9 @@ class TrendAnalyzer:
             f"竞争分={competition_score:.0f}, "
             f"利润分={margin_score:.0f}, "
             f"互动分={engagement_score:.0f}, "
-            f"季节性={seasonality_coeff:.2f}"
+            f"季节性={seasonality_coeff:.2f}, "
+            f"贡献利润率={economics.contribution_margin:.1%}, "
+            f"保本ROAS={economics.break_even_roas or 0:.2f}"
         )
 
         return TrendScore(
@@ -231,6 +261,9 @@ class TrendAnalyzer:
             margin_score=round(margin_score, 1),
             engagement_score=round(engagement_score, 1),
             seasonality_score=round(seasonality_coeff, 2),
+            estimated_contribution_margin=economics.contribution_margin,
+            max_allowable_cpa=economics.max_allowable_cpa,
+            break_even_roas=economics.break_even_roas,
             reasoning=reasoning,
         )
 
@@ -303,40 +336,24 @@ class TrendAnalyzer:
             return max(5.0, 100.0 - count * 0.3)  # 极端红海最低 5 分
 
     @staticmethod
-    def _score_margin(product: ProductInsight) -> float:
+    def _score_margin(contribution_margin: float) -> float:
         """
         利润维度评分 (0-100)
 
-        基于定价位置和绝对价格估算利润空间。
-        - 高定价 (price_position=high): 80-100
-        - 中等定价: 50-80
-        - 低定价: 30-50
-        - 极低价 (< $5): 20 (利润太薄)
+        基于计入商品、平台、达人、广告、折扣、物流、退货和 COD 后的
+        单均贡献利润率，而不是用售价高低冒充利润。
         """
-        price = product.price
-        position = product.price_position
-
-        # 先按价格区间给基础分
-        if price >= 50:
-            base = 85.0
-        elif price >= 30:
-            base = 75.0
-        elif price >= 15:
-            base = 65.0
-        elif price >= 8:
-            base = 50.0
-        elif price >= 3:
-            base = 35.0
-        else:
-            base = 20.0
-
-        # 按定价位置调整
-        if position == "high":
-            return min(100.0, base + 15)
-        elif position == "low":
-            return max(10.0, base - 15)
-        else:
-            return base
+        if contribution_margin <= 0:
+            return 0.0
+        if contribution_margin >= 0.40:
+            return 100.0
+        if contribution_margin >= 0.30:
+            return 85.0 + (contribution_margin - 0.30) * 150
+        if contribution_margin >= 0.20:
+            return 70.0 + (contribution_margin - 0.20) * 150
+        if contribution_margin >= 0.10:
+            return 45.0 + (contribution_margin - 0.10) * 250
+        return contribution_margin * 450
 
     @staticmethod
     def _score_engagement(product: ProductInsight) -> float:
