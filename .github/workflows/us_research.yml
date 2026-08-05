@@ -1,7 +1,8 @@
 # TikTok 选品数据分析 - 欧美区域 (US/EU)
 #
 # 目标市场: 美国(us) / 英国(uk) / 日本(jp) / 德国(de) / 法国(fr)
-# 执行时间: 每天 08:00 / 16:00 UTC+8 (北京时间)
+# 旧版欧美工作流，仅保留手动排障入口。
+# 当前自动化只运行 sea_research.yml 的泰国任务。
 # 配置文件: config.us.yaml
 #
 # GitHub Secrets 需配置:
@@ -12,11 +13,6 @@
 name: 🇺🇸 US 选品分析
 
 on:
-  schedule:
-    # 北京时间 08:00 = UTC 00:00
-    - cron: "0 0 * * *"
-    # 北京时间 16:00 = UTC 08:00
-    - cron: "0 8 * * *"
   workflow_dispatch:
     inputs:
       markets:
