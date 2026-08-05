@@ -85,6 +85,22 @@ def decide_selection_stage(
             product.product_id, SelectionStage.WATCH, tuple(reasons), exact_costs,
         )
 
+    min_margin = float(gates.get("min_contribution_margin", 0.12))
+    max_roas = float(gates.get("max_break_even_roas", 3.5))
+    min_sales = int(gates.get("min_sales_volume", 100))
+    margin = score.estimated_contribution_margin or -1
+    roas = score.break_even_roas
+    if margin < min_margin:
+        reasons.append(f"贡献利润率 {margin:.1%} 低于 {min_margin:.0%}")
+    if roas is None or roas > max_roas:
+        reasons.append("保本 ROAS 超过风险上限")
+    if product.sales_volume < min_sales:
+        reasons.append("销量证据不足")
+    if reasons:
+        return SelectionDecision(
+            product.product_id, SelectionStage.WATCH, tuple(reasons), exact_costs,
+        )
+
     missing: list[str] = []
     if not exact_costs:
         missing.append("准确进货/物流/包装成本")
@@ -112,22 +128,6 @@ def decide_selection_stage(
             SelectionStage.SUPPLIER_VALIDATION,
             ("待补：" + "、".join(missing),),
             exact_costs,
-        )
-
-    min_margin = float(gates.get("min_contribution_margin", 0.12))
-    max_roas = float(gates.get("max_break_even_roas", 3.5))
-    min_sales = int(gates.get("min_sales_volume", 100))
-    margin = score.estimated_contribution_margin or -1
-    roas = score.break_even_roas
-    if margin < min_margin:
-        reasons.append(f"贡献利润率 {margin:.1%} 低于 {min_margin:.0%}")
-    if roas is None or roas > max_roas:
-        reasons.append("保本 ROAS 超过风险上限")
-    if product.sales_volume < min_sales:
-        reasons.append("销量证据不足")
-    if reasons:
-        return SelectionDecision(
-            product.product_id, SelectionStage.WATCH, tuple(reasons), exact_costs,
         )
 
     return SelectionDecision(

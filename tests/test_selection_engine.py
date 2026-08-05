@@ -53,6 +53,16 @@ class SelectionEngineTests(unittest.TestCase):
         decision = decide_selection_stage(make_product(), make_score(), {})
         self.assertEqual(decision.stage, SelectionStage.SUPPLIER_VALIDATION)
 
+    def test_investment_gates_apply_before_supplier_validation(self):
+        decision = decide_selection_stage(
+            make_product(),
+            make_score(estimated_contribution_margin=0.118, break_even_roas=3.8),
+            {"min_contribution_margin": 0.12, "max_break_even_roas": 3.5},
+        )
+        self.assertEqual(decision.stage, SelectionStage.WATCH)
+        self.assertIn("贡献利润率", decision.reasons[0])
+        self.assertIn("保本 ROAS", decision.reasons[1])
+
     def test_high_compliance_risk_is_rejected(self):
         decision = decide_selection_stage(
             make_product(compliance_risk="high"), make_score(), {}

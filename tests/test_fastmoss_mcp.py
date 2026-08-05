@@ -151,6 +151,7 @@ class FastMossMCPTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(_is_placeholder_listing("Home Supplies กรุณาอย่าทำการสั่งซื้อ"))
         self.assertTrue(_is_placeholder_listing("GWP สินค้ากิจกรรมเท่านั้น"))
         self.assertTrue(_is_placeholder_listing("นี่คือของขวัญฟรีสำหรับคุณ"))
+        self.assertTrue(_is_placeholder_listing("TZH【ของขวัญฟรี】กล่องที่เป็นมิตรกับสิ่งแวดล้อม"))
         self.assertFalse(_is_placeholder_listing("กล่องเก็บเสื้อผ้าขนาดใหญ่"))
 
 
