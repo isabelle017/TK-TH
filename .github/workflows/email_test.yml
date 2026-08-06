@@ -1,6 +1,11 @@
 name: 测试邮件通知
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/email_test.yml"
   workflow_dispatch:
 
 permissions:
