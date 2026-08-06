@@ -46,9 +46,22 @@ jobs:
       - name: 运行自动测试
         run: python -m unittest discover -s tests -v
 
+      - name: 检查邮件通知配置
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          test -n "$SMTP_USER" || { echo "Missing secret: SMTP_USER"; exit 1; }
+          test -n "$SMTP_PASSWORD" || { echo "Missing secret: SMTP_PASSWORD"; exit 1; }
+          test -n "$NOTIFY_EMAIL" || { echo "Missing secret: NOTIFY_EMAIL"; exit 1; }
+
       - name: 运行泰国选品分析
         env:
           FASTMOSS_MCP_KEY: ${{ secrets.FASTMOSS_MCP_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
         run: |
           python scheduler.py --region sea --once \
             --markets "${{ github.event.inputs.markets || 'th' }}" \

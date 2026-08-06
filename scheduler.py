@@ -781,6 +781,7 @@ def main():
             logger.info("测试通知发送成功 ✅")
         else:
             logger.error("测试通知发送失败 ❌")
+            raise SystemExit(1)
         return
 
     import asyncio

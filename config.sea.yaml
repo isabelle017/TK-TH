@@ -34,9 +34,9 @@ api_keys:
 
 # ---------- 通知配置 ----------
 notify:
-  # 默认零配置输出到运行窗口；后续可由我协助切换邮件或 Telegram。
-  channel: "console"
-  alert_channel: "console"
+  # 每日泰国选品结果通过 GitHub Secrets 配置的 QQ SMTP 发出。
+  channel: "email"
+  alert_channel: "email"
 
   email:
     enabled: true

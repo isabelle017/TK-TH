@@ -1,0 +1,43 @@
+name: 测试邮件通知
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 检查邮件通知配置
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          test -n "$SMTP_USER" || { echo "Missing secret: SMTP_USER"; exit 1; }
+          test -n "$SMTP_PASSWORD" || { echo "Missing secret: SMTP_PASSWORD"; exit 1; }
+          test -n "$NOTIFY_EMAIL" || { echo "Missing secret: NOTIFY_EMAIL"; exit 1; }
+
+      - name: 发送测试邮件
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: python scheduler.py --region sea --test-notify
