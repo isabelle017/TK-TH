@@ -425,6 +425,13 @@ class ProductPipeline:
             if not self._passes_investment_gates(product, score):
                 continue
 
+            decision = self.selection_decisions.get(product.product_id)
+            stage_label = {
+                SelectionStage.SAMPLE_TEST: "样品测试",
+                SelectionStage.SUPPLIER_VALIDATION: "询价/合规验证",
+            }.get(decision.stage if decision else None, "待核验")
+            decision_reasons = "；".join(decision.reasons) if decision else ""
+
             # 标题标签
             if score.score >= self.analyzer.thresholds.hot_score:
                 tag = "🔥 爆品潜力"
@@ -440,11 +447,16 @@ class ProductPipeline:
                 f"最大CPA: ${(score.max_allowable_cpa or 0):.2f}\n"
             )
             body = (
+                f"🔎 阶段: {stage_label}\n"
+                f"🆔 商品ID: {product.product_id}\n"
+                f"📝 商品描述: {product.title}\n"
+                f"🔗 原始链接: {product.source_url or '未提供'}\n"
                 f"💰 售价: ${product.price:.2f} | 销量: {product.sales_volume:,}\n"
                 f"📈 7日增长: {product.sales_growth_7d:.1f}%\n"
                 f"🏪 在售卖家: {product.seller_count} | 互动率: {product.engagement_rate*100:.2f}%\n"
                 f"{economics_line}"
-                f"📊 综合评分: {score.score:.0f}/100 | {score.reasoning}"
+                f"📊 综合评分: {score.score:.0f}/100 | {score.reasoning}\n"
+                f"📌 当前依据: {decision_reasons or '见报告'}"
             )
 
             sentiment = sentiment_results.get(product.product_id)
@@ -467,7 +479,10 @@ class ProductPipeline:
             return False
         decision = self.selection_decisions.get(product.product_id)
         if decision is not None:
-            return decision.stage == SelectionStage.SAMPLE_TEST
+            return decision.stage in {
+                SelectionStage.SAMPLE_TEST,
+                SelectionStage.SUPPLIER_VALIDATION,
+            }
         margin = score.estimated_contribution_margin
         break_even_roas = score.break_even_roas
         return bool(
